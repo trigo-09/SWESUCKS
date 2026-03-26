@@ -308,14 +308,10 @@ def map_reverse_geocode_result(item, latitude, longitude):
 
 def geocode_address(query):
     query_lower = query.lower()
-    mock_matches = [
-        item | {"source": "mock"}
-        for item in MOCK_LOCATIONS
-        if query_lower in item["label"].lower() and is_within_singapore_bounds(item["latitude"], item["longitude"])
-    ]
+    
     token = get_onemap_token()
     if not token:
-        return mock_matches
+        return []
     params = urlencode(
         {
             "searchVal": query,
@@ -337,7 +333,7 @@ def geocode_address(query):
             return live_matches[:8]
     except RuntimeError:
         pass
-    return mock_matches
+    return []
 
 
 def reverse_geocode(latitude, longitude):
