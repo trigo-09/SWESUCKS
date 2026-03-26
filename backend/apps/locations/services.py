@@ -62,13 +62,6 @@ WATER_EXCLUSION_POLYGONS = [
     ],
 ]
 
-MOCK_LOCATIONS = [
-    {"label": "Orchard Road, Singapore", "latitude": 1.3048, "longitude": 103.8318},
-    {"label": "Marina Bay Sands, Singapore", "latitude": 1.2834, "longitude": 103.8607},
-    {"label": "Raffles Place, Singapore", "latitude": 1.2840, "longitude": 103.8510},
-    {"label": "Jurong East, Singapore", "latitude": 1.3331, "longitude": 103.7422},
-    {"label": "Changi Airport, Singapore", "latitude": 1.3644, "longitude": 103.9915},
-]
 
 _cached_token = None
 _cached_token_expiry = 0
