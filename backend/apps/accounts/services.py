@@ -65,8 +65,6 @@ def create_or_login_google_user(email, name=""):
 
 
 def verify_google_credential(credential):
-    if not settings.GOOGLE_CLIENT_ID:
-        raise ValueError("Google OAuth is not configured on the server.")
     try:
         payload = google_id_token.verify_oauth2_token(
             credential,
