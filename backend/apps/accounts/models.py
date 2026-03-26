@@ -8,7 +8,7 @@ from django.utils import timezone
 
 
 class User(AbstractUser):
-    username = models.CharField(max_length=150, unique=True, blank=True)
+    username = models.CharField(max_length=20, blank=True)
     email = models.EmailField(unique=True)
     is_verified = models.BooleanField(default=False)
     is_guest = models.BooleanField(default=False)
