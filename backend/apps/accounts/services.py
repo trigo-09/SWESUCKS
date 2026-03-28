@@ -36,7 +36,7 @@ def issue_otp(user, purpose):
 @transaction.atomic
 def create_email_user(email, password):
     user = User.objects.create_user(email=email.lower(), password=password, username=email.lower(), auth_provider="email")
-    ensure_profile(user)
+    _ = ensure_profile(user)
     verification = issue_otp(user, "verify")
     return user, verification
 
