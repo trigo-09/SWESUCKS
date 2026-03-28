@@ -8,8 +8,8 @@ from django.utils import timezone
 
 
 class User(AbstractUser):
-    username = models.CharField(max_length=20, blank=True)
-    email = models.EmailField(unique=True)
+    username = models.CharField(max_length=20, blank=True,unique=False) #name of user
+    email = models.EmailField(unique=True) #email of user
     is_verified = models.BooleanField(default=False)
     is_guest = models.BooleanField(default=False)
     auth_provider = models.CharField(max_length=20, default="email")
