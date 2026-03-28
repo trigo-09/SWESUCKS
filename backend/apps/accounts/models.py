@@ -66,8 +66,7 @@ class FavouriteLocation(models.Model):
     address = models.CharField(max_length=255)
     latitude = models.FloatField()
     longitude = models.FloatField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+   
 
 
 class RecommendationHistory(models.Model):
