@@ -36,11 +36,14 @@ export default function RouteMap({ origin, destinations, markers = [], routeType
   const [routeInfo, setRouteInfo] = useState(null);
   const [routeDetails, setRouteDetails] = useState(null);
 
-  const finalDestination = destinations?.[destinations.length - 1];
+  const validDestinations = useMemo(
+    () => (destinations || []).filter((point) => isValidLocationPoint(point)),
+    [destinations]
+  );
 
   useEffect(() => {
     const loadRoute = async () => {
-      if (!origin || !finalDestination) {
+      if (!isValidLocationPoint(origin) || validDestinations.length === 0) {
         setRouteLine([]);
         setRouteInfo(null);
         setRouteDetails(null);
@@ -49,16 +52,44 @@ export default function RouteMap({ origin, destinations, markers = [], routeType
       try {
         const data = await api.post("/locations/route-preview/", {
           origin,
-          destination: finalDestination,
+          destinations: validDestinations,
           route_type: routeType
         });
-        setRouteLine(data.coords || []);
-        setRouteInfo(data.summary || null);
-        setRouteDetails(data.details || null);
+
+        const route = data?.route || data || {};
+        const primaryCoords = normalizePolylineCoordinates(route.coords || []);
+        const segmentCoords = combineSegmentCoordinates(route.segments || []);
+        setRouteLine(primaryCoords.length >= 2 ? primaryCoords : segmentCoords);
+
+        const hasFallbackSegment =
+          Array.isArray(route.segments) &&
+          route.segments.some((segment) => segment?.provider_mode === "fallback");
+
+        setRouteInfo(
+          route.summary || {
+            provider_mode: route.segments?.[0]?.provider_mode || route.provider_mode || "fallback",
+            route_type: route.route_type || routeType,
+            distance_m: route.total_distance_m ?? null,
+            duration_s: route.total_duration_s ?? null,
+            message: hasFallbackSegment ? "Some route segments used fallback data." : route.message || ""
+          }
+        );
+
+        setRouteDetails(
+          route.details || {
+            provider_mode: route.segments?.[0]?.provider_mode || route.provider_mode || "multi-stop",
+            route_summary: {
+              total_distance_m: route.total_distance_m,
+              total_duration_s: route.total_duration_s,
+              num_stops: route.num_stops
+            },
+            segments: route.segments || []
+          }
+        );
       } catch {
         setRouteLine([
-          [origin.latitude, origin.longitude],
-          [finalDestination.latitude, finalDestination.longitude]
+          [Number(origin.latitude), Number(origin.longitude)],
+          ...validDestinations.map((point) => [Number(point.latitude), Number(point.longitude)])
         ]);
         setRouteInfo({
           provider_mode: "fallback",
@@ -71,13 +102,16 @@ export default function RouteMap({ origin, destinations, markers = [], routeType
       }
     };
     loadRoute();
-  }, [origin, finalDestination, routeType]);
+  }, [origin, validDestinations, routeType]);
 
   const mapMarkers = useMemo(() => {
-    if (markers.length > 0) return markers;
+    if (markers.length > 0) return markers.filter((point) => isValidLocationPoint(point));
+
     return [
-      ...(origin ? [{ type: "origin", label: origin.label, latitude: origin.latitude, longitude: origin.longitude }] : []),
-      ...(destinations || []).map((item, index) => ({
+      ...(isValidLocationPoint(origin)
+        ? [{ type: "origin", label: origin.label, latitude: origin.latitude, longitude: origin.longitude }]
+        : []),
+      ...validDestinations.map((item, index) => ({
         type: "destination",
         label: item.label,
         latitude: item.latitude,
@@ -85,7 +119,7 @@ export default function RouteMap({ origin, destinations, markers = [], routeType
         sequence: index + 1
       }))
     ];
-  }, [markers, origin, destinations]);
+  }, [markers, origin, validDestinations]);
 
   return (
     <div className="space-y-4">
@@ -167,6 +201,64 @@ export default function RouteMap({ origin, destinations, markers = [], routeType
         </div>
       )}
     </div>
+  );
+}
+
+function isValidLocationPoint(point) {
+  return (
+    !!point &&
+    Number.isFinite(Number(point.latitude)) &&
+    Number.isFinite(Number(point.longitude))
+  );
+}
+
+function normalizePolylineCoordinates(coords) {
+  return (coords || [])
+    .map((point) => {
+      if (Array.isArray(point) && point.length >= 2) {
+        const latitude = Number(point[0]);
+        const longitude = Number(point[1]);
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          return [latitude, longitude];
+        }
+      }
+
+      if (point && typeof point === "object") {
+        const latitude = Number(point.latitude ?? point.lat ?? point[0]);
+        const longitude = Number(point.longitude ?? point.lng ?? point[1]);
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          return [latitude, longitude];
+        }
+      }
+
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function combineSegmentCoordinates(segments) {
+  const merged = [];
+
+  for (const segment of segments || []) {
+    const segmentCoordinates = normalizePolylineCoordinates(segment?.coords || segment?.coordinates || []);
+    if (segmentCoordinates.length === 0) {
+      continue;
+    }
+
+    if (merged.length > 0 && coordinatesEqual(merged[merged.length - 1], segmentCoordinates[0])) {
+      merged.push(...segmentCoordinates.slice(1));
+    } else {
+      merged.push(...segmentCoordinates);
+    }
+  }
+
+  return merged;
+}
+
+function coordinatesEqual(first, second, tolerance = 1e-6) {
+  return (
+    Math.abs(first[0] - second[0]) < tolerance &&
+    Math.abs(first[1] - second[1]) < tolerance
   );
 }
 

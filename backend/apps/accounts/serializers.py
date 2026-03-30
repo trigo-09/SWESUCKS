@@ -1,9 +1,7 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-
 from apps.locations.services import is_in_singapore
-
 from .models import FavouriteLocation, Profile, RecommendationHistory, User
 
 
@@ -106,7 +104,8 @@ class FavouriteLocationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FavouriteLocation
-        fields = ["id", "name", "address", "latitude", "longitude", "created_at", "updated_at"]
+        fields = ["id","user" ,"name", "address", "latitude", "longitude", "created_at", "updated_at"]
+        read_only_fields = ["user", "created_at", "updated_at"]
 
 
 class RecommendationHistorySerializer(serializers.ModelSerializer):

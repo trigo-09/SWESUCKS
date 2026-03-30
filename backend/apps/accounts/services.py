@@ -1,5 +1,3 @@
-import random
-
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
@@ -9,10 +7,11 @@ from google.oauth2 import id_token as google_id_token
 from rest_framework.authtoken.models import Token
 
 from .models import OTPToken, Profile, User
+import secrets
 
 
 def generate_otp():
-    return f"{random.randint(0, 999999):06d}"
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 def ensure_profile(user):
@@ -42,7 +41,18 @@ def create_email_user(email, password):
 
 
 @transaction.atomic
-def create_or_login_google_user(email, name=""):
+def create_or_login_google_user(email, name="",google_id=None):
+    if google_id:
+        user = User.objects.filter(google_id=google_id).first()
+        if user:
+            if name and not user.first_name:
+                user.first_name = name
+            user.save(update_fields=["first_name"])
+            ensure_profile(user)
+            token, _ = Token.objects.get_or_create(user=user)
+            return (user, token.key), False, None
+
+
     user, created = User.objects.get_or_create(
         email=email.lower(),
         defaults={

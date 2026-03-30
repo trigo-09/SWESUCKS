@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 """
 Django settings for learning project.
@@ -32,7 +33,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "rest_framework.authtoken",
-    "apps.common",
+    "rest_framework_simplejwt",
     "apps.accounts",
     "apps.locations",
     "apps.recommendations",
@@ -69,6 +70,17 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "Default-cache",
+    },
+    "onemap": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "onemap-cache",
+    },
+}
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -93,11 +105,22 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.TokenAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.TokenAuthentication", "rest_framework_simplejwt.authentication.JWTAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
-    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"anon": "100/day"},
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle","rest_framework.throttling.UserRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {"anon": "10/hour", "user": "20/hour"},
 }
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
 
 CORS_ALLOW_ALL_ORIGINS = True
 
@@ -107,8 +130,8 @@ EMAIL_HOST = os.getenv("EMAIL_HOST", "")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = "true"
-EMAIL_USE_SSL = "false"
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 GOOGLE_OAUTH_ENABLED = os.getenv("GOOGLE_CLIENT_ID", "").strip()
@@ -117,3 +140,5 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 ONEMAP_EMAIL = os.getenv("ONEMAP_EMAIL", "")
 ONEMAP_PASSWORD = os.getenv("ONEMAP_PASSWORD", "")
 LTA_ACCOUNT_KEY = os.getenv("LTA_ACCOUNT_KEY", "")
+
+

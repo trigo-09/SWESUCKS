@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .services import build_route, geocode_address, is_in_singapore, is_within_singapore_bounds, reverse_geocode
+from .services import build_route, geocode_address, is_in_singapore, reverse_geocode,build_multi_stop_route
 
 
 class AutocompleteView(APIView):
@@ -28,12 +28,12 @@ class ValidateLocationView(APIView):
             if not matches:
                 return Response({"valid": False, "message": "Invalid Address, try again"}, status=status.HTTP_400_BAD_REQUEST)
             location = matches[0]
-            if not is_within_singapore_bounds(location["latitude"], location["longitude"]):
+            if not is_in_singapore(location["latitude"], location["longitude"]):
                 return Response({"valid": False, "message": "Invalid Address, try again"}, status=status.HTTP_400_BAD_REQUEST)
             return Response({"valid": True, "location": location})
 
         location = {"latitude": float(latitude), "longitude": float(longitude), "label": label or "Current location"}
-        if not is_within_singapore_bounds(location["latitude"], location["longitude"]):
+        if not is_in_singapore(location["latitude"], location["longitude"]):
             return Response({"valid": False, "message": "Invalid Address, try again"}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"valid": True, "location": location})
 
@@ -52,8 +52,16 @@ class RoutePreviewView(APIView):
 
     def post(self, request):
         origin = request.data.get("origin")
-        destination = request.data.get("destination")
+        destinations = request.data.get("destinations")
+        # Backwards compatibility for older payload shape.
+        if destinations is None and request.data.get("destination"):
+            destinations = [request.data.get("destination")]
+
         route_type = request.data.get("route_type", "drive")
-        if not origin or not destination:
-            return Response({"detail": "Origin and destination are required."}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(build_route(origin, destination, route_type))
+        if not origin or not isinstance(destinations, list) or len(destinations) == 0:
+            return Response(
+                {"detail": "Origin and at least one destination are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(build_multi_stop_route(origin, destinations, route_type), status=200)
