@@ -1,8 +1,12 @@
+import logging
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import RecommendationHistory
+
+logger = logging.getLogger(__name__)
 
 from .serializers import RecommendationSerializer
 from .services import generate_recommendation
@@ -20,6 +24,7 @@ class RecommendationView(APIView):
         try:
             payload = generate_recommendation(origin, destinations, preference_mode, max_walking_distance)
         except Exception as error:
+            logger.exception("generate_recommendation failed for user=%s", getattr(request.user, "email", "anon"))
             return Response({"detail": str(error)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         if not request.user.is_guest:
             RecommendationHistory.objects.create(
