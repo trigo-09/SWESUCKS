@@ -76,21 +76,10 @@ def create_or_login_google_user(email, name="",google_id=None):
 
 def verify_google_credential(credential):
     try:
-        payload = google_id_token.verify_oauth2_token(
+        return google_id_token.verify_oauth2_token(
             credential,
             google_requests.Request(),
             settings.GOOGLE_CLIENT_ID,
         )
     except Exception as error:
         raise ValueError("Invalid Google credential.") from error
-
-    if payload.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
-        raise ValueError("Invalid Google issuer.")
-    if not payload.get("email") or not payload.get("email_verified"):
-        raise ValueError("Google account email is not verified.")
-
-    return {
-        "email": payload["email"].lower(),
-        "name": payload.get("name") or payload.get("given_name") or "",
-        "sub": payload.get("sub"),
-    }

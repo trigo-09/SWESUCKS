@@ -25,7 +25,6 @@ from .serializers import (
     UserSerializer,
 )
 from .services import create_email_user, create_or_login_google_user, ensure_profile, issue_otp
-from .services import verify_google_credential
 import uuid
 
 class RegisterView(APIView):
@@ -116,15 +115,11 @@ class GoogleAuthView(APIView):
     def post(self, request):
         serializer = GoogleAuthSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        try:
-            google_identity = verify_google_credential(serializer.validated_data["credential"])
-        except ValueError as error:
-            return Response({"detail": str(error)}, status=400)
-
+        google_identity = serializer.validated_data["credential"]
         result, _, error = create_or_login_google_user(
             google_identity["email"],
             google_identity.get("name", ""),
+            google_id=google_identity.get("sub"),
         )
 
         if error:
