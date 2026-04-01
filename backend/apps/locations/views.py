@@ -3,26 +3,29 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .services import build_route, geocode_address, is_in_singapore, reverse_geocode,build_multi_stop_route
+from .serializers import GeocodeRequestSerializer, ReverseGeocodeRequestSerializer, RouteRequestSerializer, ValidateLocationSerializer
+from .services import build_multi_stop_route, geocode_address, is_in_singapore, reverse_geocode
 
 
 class AutocompleteView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        query = request.query_params.get("q", "").strip()
-        if not query:
-            return Response([])
-        return Response(geocode_address(query))
+        serializer = GeocodeRequestSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        return Response(geocode_address(serializer.validated_data["q"]))
 
 
 class ValidateLocationView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        latitude = request.data.get("latitude")
-        longitude = request.data.get("longitude")
-        label = request.data.get("label", "")
+        serializer = ValidateLocationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        latitude = serializer.validated_data.get("latitude")
+        longitude = serializer.validated_data.get("longitude")
+        label = serializer.validated_data.get("label", "")
+
         if latitude is None or longitude is None:
             matches = geocode_address(label)
             if not matches:
@@ -32,7 +35,7 @@ class ValidateLocationView(APIView):
                 return Response({"valid": False, "message": "Invalid Address, try again"}, status=status.HTTP_400_BAD_REQUEST)
             return Response({"valid": True, "location": location})
 
-        location = {"latitude": float(latitude), "longitude": float(longitude), "label": label or "Current location"}
+        location = {"latitude": latitude, "longitude": longitude, "label": label or "Current location"}
         if not is_in_singapore(location["latitude"], location["longitude"]):
             return Response({"valid": False, "message": "Invalid Address, try again"}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"valid": True, "location": location})
@@ -42,26 +45,24 @@ class ReverseGeocodeView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        latitude = float(request.query_params.get("latitude"))
-        longitude = float(request.query_params.get("longitude"))
-        return Response(reverse_geocode(latitude, longitude))
+        serializer = ReverseGeocodeRequestSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        return Response(reverse_geocode(serializer.validated_data["latitude"], serializer.validated_data["longitude"]))
 
 
 class RoutePreviewView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        origin = request.data.get("origin")
-        destinations = request.data.get("destinations")
+        data = request.data.copy()
         # Backwards compatibility for older payload shape.
-        if destinations is None and request.data.get("destination"):
-            destinations = [request.data.get("destination")]
+        if "destinations" not in data and data.get("destination"):
+            data["destinations"] = [data["destination"]]
 
-        route_type = request.data.get("route_type", "drive")
-        if not origin or not isinstance(destinations, list) or len(destinations) == 0:
-            return Response(
-                {"detail": "Origin and at least one destination are required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        return Response(build_multi_stop_route(origin, destinations, route_type), status=200)
+        serializer = RouteRequestSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        return Response(build_multi_stop_route(
+            serializer.validated_data["origin"],
+            serializer.validated_data["destinations"],
+            serializer.validated_data["route_type"],
+        ), status=200)

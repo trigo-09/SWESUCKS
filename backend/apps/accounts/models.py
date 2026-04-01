@@ -51,10 +51,22 @@ class OTPToken(models.Model):
     expires_at = models.DateTimeField()
     consumed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "purpose", "consumed_at"], name="otp_lookup_idx"),
+        ]
 
     @property
     def is_valid(self):
-        return self.consumed_at is None and timezone.now() < self.expires_at
+        from django.conf import settings as django_settings
+        max_attempts = getattr(django_settings, "OTP_MAX_ATTEMPTS", 5)
+        return (
+            self.consumed_at is None
+            and timezone.now() < self.expires_at
+            and self.attempts < max_attempts
+        )
 
     @classmethod
     def build_expiry(cls):

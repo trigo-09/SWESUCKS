@@ -1,17 +1,19 @@
 import json
-import time
-import polyline
+import logging
 import math
+import time
 
+import polyline
 from shapely import unary_union
-from shapely.geometry import Point,shape
+from shapely.geometry import Point, shape
 from datetime import datetime, timedelta, timezone
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 from django.conf import settings
 from django.core.cache import caches
-from .constants import AUTH_URL,ROUTE_URL,REVERSE_GEOCODE_URLS,BOUNDARY_URL,SEARCH_URL
+from apps.common.utils import fetch_json
+from .constants import AUTH_URL, ROUTE_URL, REVERSE_GEOCODE_URLS, BOUNDARY_URL, SEARCH_URL
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -34,38 +36,6 @@ for feature in geojson["features"]:
 SINGAPORE_POLYGON = unary_union(polygons).buffer(0)
 
 
-
-def fetch_json(url, method="GET", headers=None, body=None, timeout=20):
-    headers = headers or {}
-    for tries in range(3): #try to fetch data 3 times before raising error
-        if body is not None:
-            body = json.dumps(body).encode("utf-8")
-            headers["Content-Type"] = "application/json"
-        request = Request(url, data=body, method=method, headers=headers)
-
-        try:
-            with urlopen(request, timeout=timeout) as response:
-                payload = response.read().decode("utf-8")
-                return json.loads(payload)
-
-        except HTTPError as error:
-            payload = error.read().decode("utf-8", errors="ignore")
-            if tries < 3:
-                time.sleep(0.5)
-                continue
-            raise RuntimeError(f"HTTP {error.code}: {payload[:200]}")
-
-        except URLError as error:
-            if tries < 3:
-                time.sleep(0.5)
-                continue
-            raise RuntimeError(f"Network error: {error.reason}")
-
-        except json.JSONDecodeError as error:
-            if tries < 3:
-                time.sleep(0.5)
-                continue
-            raise RuntimeError(f"Non-JSON response received: {error}")
 
 
 def is_in_singapore(latitude, longitude)->bool:
@@ -221,6 +191,7 @@ def get_onemap_token():
         return token
 
     except Exception as error:
+        logger.error("Failed to obtain OneMap token: %s", error)
         return None
 
 
@@ -297,13 +268,13 @@ def geocode_address(query):
         if live_matches:
             return live_matches[:MAX_GEOCODE_RESULTS]
 
-    except Exception as error: #maybe we should start logging errors potentially?
-        pass
+    except Exception as error:
+        logger.warning("geocode_address failed for query=%r: %s", query, error)
 
 
 REVERSE_GEOCODE_BUFFER = 25
 def reverse_geocode(latitude, longitude):
-    #we can't do reverse geocoding, so just return the current location.
+    logger.debug("reverse_geocode lat=%s lng=%s", latitude, longitude)
     fallback = {
         "label": format_current_location_label(latitude, longitude),
         "latitude": latitude,

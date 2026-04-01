@@ -1,5 +1,8 @@
+import logging
+
+from django.conf import settings
 from django.contrib.auth import logout
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.exceptions import PermissionDenied
@@ -9,8 +12,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
-from rest_framework_simplejwt.tokens import RefreshToken
 from .models import FavouriteLocation, OTPToken, RecommendationHistory, User
+
+
+logger = logging.getLogger(__name__)
 from .serializers import (
     ChangePasswordSerializer,
     FavouriteLocationSerializer,
@@ -25,7 +30,6 @@ from .serializers import (
     UserSerializer,
 )
 from .services import create_email_user, create_or_login_google_user, ensure_profile, issue_otp
-from .services import verify_google_credential
 import uuid
 
 class RegisterView(APIView):
@@ -65,8 +69,12 @@ class VerifyEmailView(APIView):
         if not user:
             return Response({"detail": "Account not found."}, status=404)
 
-        otp = OTPToken.objects.filter(user=user, purpose="verify", code=serializer.validated_data["otp"]).order_by("-created_at").first()
-        if not otp or not otp.is_valid:
+        otp = OTPToken.objects.filter(user=user, purpose="verify").order_by("-created_at").first()
+        if not otp or otp.code != serializer.validated_data["otp"] or not otp.is_valid:
+            if otp and otp.consumed_at is None:
+                otp.attempts += 1
+                otp.save(update_fields=["attempts"])
+            logger.warning("Failed OTP verify attempt for user=%s", user.email)
             return Response({"detail": "Invalid or expired OTP."}, status=400)
 
         with transaction.atomic():
@@ -75,6 +83,7 @@ class VerifyEmailView(APIView):
             user.is_verified = True
             user.save(update_fields=["is_verified"])
 
+        logger.info("Email verified for user=%s", user.email)
         return Response({"message": "Email verified successfully."}, status=200)
 
 
@@ -116,15 +125,11 @@ class GoogleAuthView(APIView):
     def post(self, request):
         serializer = GoogleAuthSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        try:
-            google_identity = verify_google_credential(serializer.validated_data["credential"])
-        except ValueError as error:
-            return Response({"detail": str(error)}, status=400)
-
+        google_identity = serializer.validated_data["credential"]
         result, _, error = create_or_login_google_user(
             google_identity["email"],
             google_identity.get("name", ""),
+            google_id=google_identity.get("sub"),
         )
 
         if error:
@@ -176,8 +181,12 @@ class ResetPasswordView(APIView):
         if not user:
             return Response({"detail": "If valid, your password has been reset."}, status=200)#preventing revealing email existence
 
-        otp = OTPToken.objects.filter(user=user, purpose="reset", code=serializer.validated_data["otp"]).order_by("-created_at").first()
-        if not otp or not otp.is_valid:
+        otp = OTPToken.objects.filter(user=user, purpose="reset").order_by("-created_at").first()
+        if not otp or otp.code != serializer.validated_data["otp"] or not otp.is_valid:
+            if otp and otp.consumed_at is None:
+                otp.attempts += 1
+                otp.save(update_fields=["attempts"])
+            logger.warning("Failed OTP reset attempt for user=%s", user.email)
             return Response({"detail": "Invalid or expired OTP."}, status=400)
 
         if user.check_password(serializer.validated_data["new_password"]):
@@ -275,6 +284,9 @@ class FavouriteLocationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.is_guest:
             raise PermissionDenied("Guest users cannot save favourite locations.")
+        max_favourites = getattr(settings, "MAX_FAVOURITE_LOCATIONS", 20)
+        if FavouriteLocation.objects.filter(user=self.request.user).count() >= max_favourites:
+            raise PermissionDenied(f"You can save a maximum of {max_favourites} favourite locations.")
         serializer.save(user=self.request.user)
 
 # ─────────────────────────────────────
@@ -312,4 +324,9 @@ class RecommendationHistoryViewSet(viewsets.ReadOnlyModelViewSet):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(request):
-    return Response({"status": "ok"})
+    try:
+        connection.ensure_connection()
+        return Response({"status": "ok", "db": "ok"})
+    except Exception:
+        logger.exception("Health check failed — DB unreachable")
+        return Response({"status": "degraded", "db": "unavailable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
