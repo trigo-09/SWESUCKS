@@ -1,5 +1,4 @@
 import logging
-import random
 
 from django.conf import settings
 from django.core.cache import caches
@@ -39,46 +38,6 @@ def is_bad_weather_label(label):
     lowered = str(label).lower()
     return any(term in lowered for term in ["rain", "shower", "thunder", "storm"])
 
-
-def mock_transport_snapshot(destination):
-    base_lat = destination["latitude"]
-    base_lng = destination["longitude"]
-    carparks = []
-    for idx in range(4):
-        total = random.choice([80, 100, 120])
-        available = random.randint(8, total)
-        lat = base_lat + random.uniform(-0.003, 0.003)
-        lng = base_lng + random.uniform(-0.003, 0.003)
-        carparks.append(
-            {
-                "name": f"Carpark {idx + 1}",
-                "latitude": lat,
-                "longitude": lng,
-                "total_lots": total,
-                "available_lots": available,
-                "distance_m": distance_meters(base_lat, base_lng, lat, lng),
-                "occupancy_rate": round(available / total, 2),
-            }
-        )
-    weather = random.choice(
-        [
-            {"label": "Light showers", "bad_weather": False, "area": "Singapore", "updated_at": "Just now"},
-            {"label": "Cloudy", "bad_weather": False, "area": "Singapore", "updated_at": "Just now"},
-            {"label": "Heavy rain", "bad_weather": True, "area": "Singapore", "updated_at": "Just now"},
-        ]
-    )
-    return {
-        "provider_mode": "mock",
-        "carparks": sorted(carparks, key=lambda item: item["distance_m"]),
-        "taxis_available": random.randint(0, 8),
-        "traffic": {
-            "camera_location": destination["label"],
-            "image_url": "https://placehold.co/640x360?text=Traffic+Snapshot",
-            "captured_at": "Just now",
-            "status": "available",
-        },
-        "weather": weather,
-    }
 
 
 def fetch_lta_carparks(destination):
@@ -215,9 +174,8 @@ def fetch_live_snapshot(destination):
     traffic = fetch_lta_traffic(destination)
     weather = fetch_weather(destination)
 
-    # If we have no LTA key at all, signal caller to use mock data
     if carparks is None and taxis_available is None:
-        logger.info("No live carpark/taxi data available for %s — falling back to mock", destination.get("label"))
+        logger.info("No live carpark/taxi data available for %s", destination.get("label"))
         return None
 
     return {
@@ -253,8 +211,7 @@ def get_transport_snapshot(destination):
     except Exception:
         logger.warning("fetch_live_snapshot raised unexpectedly", exc_info=True)
 
-    logger.info("Using mock transport snapshot for %s", destination.get("label"))
-    return mock_transport_snapshot(destination)
+    return None
 
 
 def build_justifications(mode, context):
@@ -339,9 +296,9 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
     )
     final_destination = destinations[-1]
     snapshot = get_transport_snapshot(final_destination)
-    if not snapshot.get("carparks"):
-        logger.debug("No carparks in snapshot — using mock data for %s", final_destination.get("label"))
-        snapshot = mock_transport_snapshot(final_destination)
+    if not snapshot or not snapshot.get("carparks"):
+        logger.warning("No carpark data available for %s", final_destination.get("label"))
+        raise RuntimeError("No car parks available near this destination.")
     pt_availability = is_public_transport_available(origin, final_destination)
     walking_limit = int(max_walking_distance)
     filtered = [cp for cp in snapshot["carparks"] if cp["distance_m"] <= walking_limit]
