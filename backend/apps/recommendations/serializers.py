@@ -1,5 +1,13 @@
 from rest_framework import serializers
 
+from .models import RecommendationHistory
+
+
+class RecommendationHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RecommendationHistory
+        fields = ["id", "origin_label", "origin_latitude", "origin_longitude", "destinations", "recommendation_payload", "created_at"]
+
 
 class LocationSerializer(serializers.Serializer):
     label = serializers.CharField()

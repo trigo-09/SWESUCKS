@@ -1,6 +1,5 @@
 import json
 import logging
-import math
 import time
 
 import polyline
@@ -10,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 from django.conf import settings
 from django.core.cache import caches
-from apps.common.utils import fetch_json
+from apps.common.utils import estimate_distance_meters, fetch_json
 from .constants import AUTH_URL, ROUTE_URL, REVERSE_GEOCODE_URLS, BOUNDARY_URL, SEARCH_URL
 
 logger = logging.getLogger(__name__)
@@ -62,21 +61,6 @@ def singapore_time_string():
     return singapore_now().strftime("%H:%M:%S")
 
 
-def estimate_distance_meters(origin, destination): #distance estimation from onemap using haversine formula
-    if not origin or not destination:
-        return 0
-
-    if "latitude" not in origin or "longitude" not in origin:
-        raise ValueError("Origin missing latitude/longitude")
-
-    if "latitude" not in destination or "longitude" not in destination:
-        raise ValueError("Destination missing latitude/longitude")
-
-    EARTH_RADIUS_METERS = 6371000
-    lat1, lon1 = map(math.radians,(origin["latitude"], origin["longitude"]))
-    lat2, lon2 = map(math.radians,(destination["latitude"], destination["longitude"]))
-    dlat, dlon = lat2 - lat1, lon2 - lon1
-    return int(EARTH_RADIUS_METERS * 2 * math.asin(math.sqrt(math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2)))
 
 
 def normalize_route_summary(summary, route_type, origin, destination, provider_mode):

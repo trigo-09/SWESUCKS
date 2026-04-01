@@ -1,10 +1,32 @@
-from rest_framework import status
-from rest_framework.permissions import AllowAny
+from django.conf import settings
+from rest_framework import status, viewsets
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .serializers import GeocodeRequestSerializer, ReverseGeocodeRequestSerializer, RouteRequestSerializer, ValidateLocationSerializer
+from .models import FavouriteLocation
+from .serializers import FavouriteLocationSerializer, GeocodeRequestSerializer, ReverseGeocodeRequestSerializer, RouteRequestSerializer, ValidateLocationSerializer
 from .services import build_multi_stop_route, geocode_address, is_in_singapore, reverse_geocode
+
+
+class FavouriteLocationViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = FavouriteLocationSerializer
+    queryset = FavouriteLocation.objects.none()
+
+    def get_queryset(self):
+        if self.request.user.is_guest:
+            return FavouriteLocation.objects.none()
+        return FavouriteLocation.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        if self.request.user.is_guest:
+            raise PermissionDenied("Guest users cannot save favourite locations.")
+        max_favourites = getattr(settings, "MAX_FAVOURITE_LOCATIONS", 20)
+        if FavouriteLocation.objects.filter(user=self.request.user).count() >= max_favourites:
+            raise PermissionDenied(f"You can save a maximum of {max_favourites} favourite locations.")
+        serializer.save(user=self.request.user)
 
 
 class AutocompleteView(APIView):

@@ -1,8 +1,8 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-from apps.locations.services import is_in_singapore
-from .models import FavouriteLocation, Profile, RecommendationHistory, User
+from apps.locations.serializers import FavouriteLocationSerializer
+from .models import Profile, User
 from .services import verify_google_credential
 
 
@@ -112,19 +112,3 @@ class ChangePasswordSerializer(serializers.Serializer):
         return attrs
 
 
-class FavouriteLocationSerializer(serializers.ModelSerializer):
-    def validate(self, attrs):
-        if not is_in_singapore(attrs["latitude"], attrs["longitude"]):
-            raise serializers.ValidationError("Invalid Address, try again")
-        return attrs
-
-    class Meta:
-        model = FavouriteLocation
-        fields = ["id","user" ,"name", "address", "latitude", "longitude", "created_at", "updated_at"]
-        read_only_fields = ["user", "created_at", "updated_at"]
-
-
-class RecommendationHistorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RecommendationHistory
-        fields = ["id", "origin_label", "origin_latitude", "origin_longitude", "destinations", "recommendation_payload", "created_at"]

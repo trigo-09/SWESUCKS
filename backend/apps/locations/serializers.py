@@ -1,5 +1,20 @@
 from rest_framework import serializers
 
+from .models import FavouriteLocation
+from .services import is_in_singapore
+
+
+class FavouriteLocationSerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        if not is_in_singapore(attrs["latitude"], attrs["longitude"]):
+            raise serializers.ValidationError("Invalid Address, try again")
+        return attrs
+
+    class Meta:
+        model = FavouriteLocation
+        fields = ["id", "user", "name", "address", "latitude", "longitude", "created_at", "updated_at"]
+        read_only_fields = ["user", "created_at", "updated_at"]
+
 
 class GeocodeRequestSerializer(serializers.Serializer):
     q = serializers.CharField(

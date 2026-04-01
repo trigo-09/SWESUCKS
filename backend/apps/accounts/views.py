@@ -1,30 +1,26 @@
 import logging
 
-from django.conf import settings
 from django.contrib.auth import logout
 from django.db import connection, transaction
 from django.utils import timezone
-from rest_framework import status, viewsets
-from rest_framework.exceptions import PermissionDenied
+from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
-from .models import FavouriteLocation, OTPToken, RecommendationHistory, User
+from .models import OTPToken, User
 
 
 logger = logging.getLogger(__name__)
 from .serializers import (
     ChangePasswordSerializer,
-    FavouriteLocationSerializer,
     ForgotPasswordSerializer,
     GoogleAuthSerializer,
     LoginSerializer,
     OTPVerifySerializer,
     ProfileSerializer,
-    RecommendationHistorySerializer,
     RegisterSerializer,
     ResetPasswordSerializer,
     UserSerializer,
@@ -269,56 +265,6 @@ class ChangePasswordView(APIView):
 
         return Response({"message": "Password updated successfully.", "token": token.key}, status=200)
 
-
-class FavouriteLocationViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-
-    serializer_class = FavouriteLocationSerializer
-    queryset = FavouriteLocation.objects.none()
-
-    def get_queryset(self):
-        if self.request.user.is_guest:
-            return FavouriteLocation.objects.none()
-        return FavouriteLocation.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        if self.request.user.is_guest:
-            raise PermissionDenied("Guest users cannot save favourite locations.")
-        max_favourites = getattr(settings, "MAX_FAVOURITE_LOCATIONS", 20)
-        if FavouriteLocation.objects.filter(user=self.request.user).count() >= max_favourites:
-            raise PermissionDenied(f"You can save a maximum of {max_favourites} favourite locations.")
-        serializer.save(user=self.request.user)
-
-# ─────────────────────────────────────
-# BUSINESS LOGIC VIEWS (TODO: Move to recommendations app)
-# ─────────────────────────────────────
-class RecommendationHistoryViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = RecommendationHistorySerializer
-    queryset = RecommendationHistory.objects.none()
-
-    def get_queryset(self):
-        if self.request.user.is_guest:
-            return RecommendationHistory.objects.none()
-        return RecommendationHistory.objects.filter(user=self.request.user)
-
-    @action(detail=True, methods=["get"])
-    def rerun_payload(self, request, pk=None):
-        history = self.get_object()
-        profile = getattr(request.user, "profile", None)
-        from apps.recommendations.services import generate_recommendation
-
-        payload = generate_recommendation(
-            {
-                "label": history.origin_label,
-                "latitude": history.origin_latitude,
-                "longitude": history.origin_longitude,
-            },
-            history.destinations,
-            getattr(profile, "preference_mode", "cost"),
-            getattr(profile, "max_walking_distance", "500"),
-        )
-        return Response(payload)
 
 
 @api_view(["GET"])

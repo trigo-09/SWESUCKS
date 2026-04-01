@@ -1,6 +1,6 @@
 ===========================================================
   BACKEND API CHANGES — FRONTEND MIGRATION GUIDE
-  Branch: claude/serializer-refactor
+  Branch: mega (latest)
 ===========================================================
 
 -----------------------------------------------------------
@@ -32,17 +32,7 @@ All endpoints below must be updated accordingly.
   POST /api/auth/change-password/      POST /api/v1/auth/change-password/
   GET  /api/auth/health/               GET  /api/v1/auth/health/
 
-  Favourite Locations (CRUD):
-  GET    /api/auth/favourites/          GET    /api/v1/auth/favourites/
-  POST   /api/auth/favourites/          POST   /api/v1/auth/favourites/
-  GET    /api/auth/favourites/{id}/     GET    /api/v1/auth/favourites/{id}/
-  PATCH  /api/auth/favourites/{id}/     PATCH  /api/v1/auth/favourites/{id}/
-  DELETE /api/auth/favourites/{id}/     DELETE /api/v1/auth/favourites/{id}/
-
-  Recommendation History (read-only):
-  GET /api/auth/history/               GET /api/v1/auth/history/
-  GET /api/auth/history/{id}/          GET /api/v1/auth/history/{id}/
-  GET /api/auth/history/{id}/rerun_payload/   GET /api/v1/auth/history/{id}/rerun_payload/
+  *** Favourite Locations and History have MOVED — see §3 and §4 below ***
 
 
 -----------------------------------------------------------
@@ -56,14 +46,30 @@ All endpoints below must be updated accordingly.
   GET  /api/locations/reverse-geocode/       GET  /api/v1/locations/reverse-geocode/
   POST /api/locations/route-preview/         POST /api/v1/locations/route-preview/
 
+  Favourite Locations — MOVED HERE from /api/auth/favourites/
+  -------------------------------------------------------
+  OLD                                        NEW
+  GET    /api/auth/favourites/               GET    /api/v1/locations/favourites/
+  POST   /api/auth/favourites/               POST   /api/v1/locations/favourites/
+  GET    /api/auth/favourites/{id}/          GET    /api/v1/locations/favourites/{id}/
+  PATCH  /api/auth/favourites/{id}/          PATCH  /api/v1/locations/favourites/{id}/
+  DELETE /api/auth/favourites/{id}/          DELETE /api/v1/locations/favourites/{id}/
+
 
 -----------------------------------------------------------
 4. RECOMMENDATION ENDPOINTS  (prefix: /api/v1/recommendations/)
 -----------------------------------------------------------
 
-  OLD                                        NEW
+  OLD                                              NEW
   -------------------------------------------------------
-  POST /api/recommendations/generate/        POST /api/v1/recommendations/generate/
+  POST /api/recommendations/generate/              POST /api/v1/recommendations/generate/
+
+  Recommendation History — MOVED HERE from /api/auth/history/
+  -------------------------------------------------------
+  OLD                                              NEW
+  GET /api/auth/history/                           GET /api/v1/recommendations/history/
+  GET /api/auth/history/{id}/                      GET /api/v1/recommendations/history/{id}/
+  GET /api/auth/history/{id}/rerun_payload/        GET /api/v1/recommendations/history/{id}/rerun_payload/
 
 
 -----------------------------------------------------------
@@ -101,7 +107,7 @@ All endpoints below must be updated accordingly.
 -----------------------------------------------------------
 
   a) Favourite Locations — max 20 limit enforced
-     - POST /api/v1/auth/favourites/ will return 403 if user already has 20 saved.
+     - POST /api/v1/locations/favourites/ will return 403 if user already has 20 saved.
      - Frontend should check count before allowing the user to save more.
 
   b) OTP — brute-force lockout after 5 wrong attempts
@@ -129,7 +135,10 @@ All endpoints below must be updated accordingly.
 
 
 ===========================================================
-  SUMMARY: The only breaking change is the /api/ → /api/v1/
-  prefix. Update your base URL constant once and everything
-  else follows. Error handling shape also changed (see §6).
+  SUMMARY OF ALL BREAKING CHANGES
+
+  1. /api/ → /api/v1/ prefix on ALL endpoints (update base URL constant)
+  2. /api/auth/favourites/ → /api/v1/locations/favourites/
+  3. /api/auth/history/    → /api/v1/recommendations/history/
+  4. Error response shape changed (see §6)
 ===========================================================
