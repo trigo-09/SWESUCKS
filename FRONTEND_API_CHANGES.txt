@@ -106,8 +106,8 @@ All endpoints below must be updated accordingly.
 7. BEHAVIOUR CHANGES (no URL change, but affects frontend logic)
 -----------------------------------------------------------
 
-  a) Favourite Locations — max 20 limit enforced
-     - POST /api/v1/locations/favourites/ will return 403 if user already has 20 saved.
+  a) Favourite Locations — max 4 limit enforced
+     - POST /api/v1/locations/favourites/ will return 403 if user already has 4 saved.
      - Frontend should check count before allowing the user to save more.
 
   b) OTP — brute-force lockout after 5 wrong attempts
