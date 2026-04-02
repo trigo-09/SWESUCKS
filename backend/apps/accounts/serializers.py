@@ -1,10 +1,9 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
-
-from apps.locations.services import is_in_singapore
-
-from .models import FavouriteLocation, Profile, RecommendationHistory, User
+from apps.locations.serializers import FavouriteLocationSerializer
+from .models import Profile, User
+from .services import verify_google_credential
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -85,6 +84,21 @@ class ResetPasswordSerializer(serializers.Serializer):
 class GoogleAuthSerializer(serializers.Serializer):
     credential = serializers.CharField()
 
+    def validate_credential(self, value):
+        try:
+            payload = verify_google_credential(value)
+        except ValueError as error:
+            raise serializers.ValidationError(str(error))
+        if payload.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
+            raise serializers.ValidationError("Invalid Google issuer.")
+        if not payload.get("email") or not payload.get("email_verified"):
+            raise serializers.ValidationError("Google account email is not verified.")
+        return {
+            "email": payload["email"].lower(),
+            "name": payload.get("name") or payload.get("given_name") or "",
+            "sub": payload.get("sub"),
+        }
+
 
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True)
@@ -98,18 +112,3 @@ class ChangePasswordSerializer(serializers.Serializer):
         return attrs
 
 
-class FavouriteLocationSerializer(serializers.ModelSerializer):
-    def validate(self, attrs):
-        if not is_in_singapore(attrs["latitude"], attrs["longitude"]):
-            raise serializers.ValidationError("Invalid Address, try again")
-        return attrs
-
-    class Meta:
-        model = FavouriteLocation
-        fields = ["id", "name", "address", "latitude", "longitude", "created_at", "updated_at"]
-
-
-class RecommendationHistorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RecommendationHistory
-        fields = ["id", "origin_label", "origin_latitude", "origin_longitude", "destinations", "recommendation_payload", "created_at"]

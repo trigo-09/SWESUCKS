@@ -8,8 +8,9 @@ from django.utils import timezone
 
 
 class User(AbstractUser):
-    username = models.CharField(max_length=20, blank=True)
+    username = models.CharField(max_length=20, blank=True,unique=False)
     email = models.EmailField(unique=True)
+    google_id = models.CharField(max_length=255, blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     is_guest = models.BooleanField(default=False)
     auth_provider = models.CharField(max_length=20, default="email")
@@ -50,34 +51,25 @@ class OTPToken(models.Model):
     expires_at = models.DateTimeField()
     consumed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "purpose", "consumed_at"], name="otp_lookup_idx"),
+        ]
 
     @property
     def is_valid(self):
-        return self.consumed_at is None and timezone.now() < self.expires_at
+        from django.conf import settings as django_settings
+        max_attempts = getattr(django_settings, "OTP_MAX_ATTEMPTS", 5)
+        return (
+            self.consumed_at is None
+            and timezone.now() < self.expires_at
+            and self.attempts < max_attempts
+        )
 
     @classmethod
     def build_expiry(cls):
         return timezone.now() + timedelta(minutes=10)
 
 
-class FavouriteLocation(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="favourite_locations")
-    name = models.CharField(max_length=120)
-    address = models.CharField(max_length=255)
-    latitude = models.FloatField()
-    longitude = models.FloatField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-
-class RecommendationHistory(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="recommendation_history")
-    origin_label = models.CharField(max_length=255)
-    origin_latitude = models.FloatField()
-    origin_longitude = models.FloatField()
-    destinations = models.JSONField(default=list)
-    recommendation_payload = models.JSONField(default=dict)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]

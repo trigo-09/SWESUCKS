@@ -1,0 +1,144 @@
+===========================================================
+  BACKEND API CHANGES — FRONTEND MIGRATION GUIDE
+  Branch: mega (latest)
+===========================================================
+
+-----------------------------------------------------------
+1. BASE URL PREFIX CHANGE  *** AFFECTS EVERY SINGLE CALL ***
+-----------------------------------------------------------
+
+  OLD prefix:  /api/
+  NEW prefix:  /api/v1/
+
+All endpoints below must be updated accordingly.
+
+
+-----------------------------------------------------------
+2. AUTH ENDPOINTS  (prefix: /api/v1/auth/)
+-----------------------------------------------------------
+
+  OLD                                  NEW
+  -------------------------------------------------------
+  POST /api/auth/register/             POST /api/v1/auth/register/
+  POST /api/auth/verify-email/         POST /api/v1/auth/verify-email/
+  POST /api/auth/login/                POST /api/v1/auth/login/
+  POST /api/auth/guest-login/          POST /api/v1/auth/guest-login/
+  POST /api/auth/google/               POST /api/v1/auth/google/
+  POST /api/auth/forgot-password/      POST /api/v1/auth/forgot-password/
+  POST /api/auth/reset-password/       POST /api/v1/auth/reset-password/
+  GET  /api/auth/me/                   GET  /api/v1/auth/me/
+  POST /api/auth/logout/               POST /api/v1/auth/logout/
+  PATCH /api/auth/profile/             PATCH /api/v1/auth/profile/
+  POST /api/auth/change-password/      POST /api/v1/auth/change-password/
+  GET  /api/auth/health/               GET  /api/v1/auth/health/
+
+  *** Favourite Locations and History have MOVED — see §3 and §4 below ***
+
+
+-----------------------------------------------------------
+3. LOCATION ENDPOINTS  (prefix: /api/v1/locations/)
+-----------------------------------------------------------
+
+  OLD                                        NEW
+  -------------------------------------------------------
+  GET  /api/locations/autocomplete/          GET  /api/v1/locations/autocomplete/
+  POST /api/locations/validate/              POST /api/v1/locations/validate/
+  GET  /api/locations/reverse-geocode/       GET  /api/v1/locations/reverse-geocode/
+  POST /api/locations/route-preview/         POST /api/v1/locations/route-preview/
+
+  Favourite Locations — MOVED HERE from /api/auth/favourites/
+  -------------------------------------------------------
+  OLD                                        NEW
+  GET    /api/auth/favourites/               GET    /api/v1/locations/favourites/
+  POST   /api/auth/favourites/               POST   /api/v1/locations/favourites/
+  GET    /api/auth/favourites/{id}/          GET    /api/v1/locations/favourites/{id}/
+  PATCH  /api/auth/favourites/{id}/          PATCH  /api/v1/locations/favourites/{id}/
+  DELETE /api/auth/favourites/{id}/          DELETE /api/v1/locations/favourites/{id}/
+
+
+-----------------------------------------------------------
+4. RECOMMENDATION ENDPOINTS  (prefix: /api/v1/recommendations/)
+-----------------------------------------------------------
+
+  OLD                                              NEW
+  -------------------------------------------------------
+  POST /api/recommendations/generate/              POST /api/v1/recommendations/generate/
+
+  Recommendation History — MOVED HERE from /api/auth/history/
+  -------------------------------------------------------
+  OLD                                              NEW
+  GET /api/auth/history/                           GET /api/v1/recommendations/history/
+  GET /api/auth/history/{id}/                      GET /api/v1/recommendations/history/{id}/
+  GET /api/auth/history/{id}/rerun_payload/        GET /api/v1/recommendations/history/{id}/rerun_payload/
+
+
+-----------------------------------------------------------
+5. NEW ENDPOINTS (did not exist before)
+-----------------------------------------------------------
+
+  GET  /api/schema/    — Raw OpenAPI JSON schema (for tooling)
+  GET  /api/docs/      — Swagger UI (browse & test all endpoints in browser)
+
+
+-----------------------------------------------------------
+6. RESPONSE FORMAT CHANGE — ERROR RESPONSES
+-----------------------------------------------------------
+
+  Errors now return a unified envelope instead of varying formats.
+
+  OLD (inconsistent):
+    { "detail": "some error message" }
+    { "field": ["error"] }
+
+  NEW (unified):
+    {
+      "error": true,
+      "detail": "Human-readable message",
+      "code": "machine_readable_code",
+      "errors": { "field": ["validation error"] }   // present on validation errors only
+    }
+
+  The "detail" key is still present — but now always nested under "error: true".
+  The "errors" key contains field-level validation errors (replaces bare field errors).
+
+
+-----------------------------------------------------------
+7. BEHAVIOUR CHANGES (no URL change, but affects frontend logic)
+-----------------------------------------------------------
+
+  a) Favourite Locations — max 4 limit enforced
+     - POST /api/v1/locations/favourites/ will return 403 if user already has 4 saved.
+     - Frontend should check count before allowing the user to save more.
+
+  b) OTP — brute-force lockout after 5 wrong attempts
+     - POST /api/v1/auth/verify-email/ and /reset-password/ will return 400
+       with "Invalid or expired OTP." after 5 failed attempts for the same OTP.
+     - Frontend should show an appropriate message and direct user to request a new OTP.
+
+  c) Health check now includes DB status
+     - GET /api/v1/auth/health/
+     - Returns 503 with { "status": "degraded", "db": "unavailable" } if DB is down.
+     - Old behaviour always returned 200.
+
+  d) X-Request-ID header on every response
+     - Every response now includes an "X-Request-ID" header (UUID).
+     - Useful for correlating frontend errors with backend logs — consider logging it.
+
+
+-----------------------------------------------------------
+8. AUTHENTICATION — NO CHANGE
+-----------------------------------------------------------
+
+  Still uses token-based auth (DRF Token).
+  Header format unchanged:
+    Authorization: Token <token_value>
+
+
+===========================================================
+  SUMMARY OF ALL BREAKING CHANGES
+
+  1. /api/ → /api/v1/ prefix on ALL endpoints (update base URL constant)
+  2. /api/auth/favourites/ → /api/v1/locations/favourites/
+  3. /api/auth/history/    → /api/v1/recommendations/history/
+  4. Error response shape changed (see §6)
+===========================================================

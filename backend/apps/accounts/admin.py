@@ -1,6 +1,8 @@
 from django.contrib import admin
 
-from .models import FavouriteLocation, OTPToken, Profile, RecommendationHistory, User
+from apps.locations.models import FavouriteLocation
+from apps.recommendations.models import RecommendationHistory
+from .models import OTPToken, Profile, User
 
 
 admin.site.register(User)

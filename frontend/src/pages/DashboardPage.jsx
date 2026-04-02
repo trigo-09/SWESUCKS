@@ -5,6 +5,8 @@ import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 const emptyDestination = { label: "", latitude: null, longitude: null };
+const hasValidCoordinates = (point) =>
+  Number.isFinite(Number(point?.latitude)) && Number.isFinite(Number(point?.longitude));
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -82,7 +84,10 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const validDestinations = destinations.filter((item) => item?.label);
+  const validDestinations = destinations.filter(
+    (item) => item?.label && hasValidCoordinates(item)
+  );
+  const hasValidOrigin = origin?.label && hasValidCoordinates(origin);
 
   const addDestination = () => {
     if (destinations.length < 3) {
@@ -98,8 +103,8 @@ export default function DashboardPage() {
   };
 
   const runRecommendation = async () => {
-    if (!origin?.label || validDestinations.length === 0) {
-      setStatus("Please provide a valid origin and at least one destination.");
+    if (!hasValidOrigin || validDestinations.length === 0) {
+      setStatus("Please select a validated origin and at least one validated destination.");
       return;
     }
     try {

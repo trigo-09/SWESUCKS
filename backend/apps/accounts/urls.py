@@ -1,8 +1,6 @@
-from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
 from .views import (
-    FavouriteLocationViewSet,
     ChangePasswordView,
     ForgotPasswordView,
     GoogleAuthView,
@@ -11,16 +9,11 @@ from .views import (
     LogoutView,
     MeView,
     ProfileView,
-    RecommendationHistoryViewSet,
     RegisterView,
     ResetPasswordView,
     VerifyEmailView,
     health,
 )
-
-router = DefaultRouter()
-router.register("favourites", FavouriteLocationViewSet, basename="favourites")
-router.register("history", RecommendationHistoryViewSet, basename="history")
 
 urlpatterns = [
     path("health/", health),
@@ -35,5 +28,4 @@ urlpatterns = [
     path("logout/", LogoutView.as_view()),
     path("profile/", ProfileView.as_view()),
     path("change-password/", ChangePasswordView.as_view()),
-    path("", include(router.urls)),
 ]
