@@ -6,7 +6,27 @@ from django.core.cache import caches
 
 from apps.common.utils import fetch_json, haversine_meters
 from apps.locations.services import build_route
-from .constants import LTA_CARPARK_URL,LTA_TAXI_URL,LTA_TRAFFIC_URL,WEATHER_2HR_URL,_SNAPSHOT_CACHE_TTL
+from .constants import (
+    DISTANCE_BUCKET_METERS,
+    DISTANCE_DECAY_FACTOR,
+    LTA_CARPARK_URL,
+    LTA_TAXI_URL,
+    LTA_TRAFFIC_URL,
+    PT_BASE_SCORE,
+    SNAPSHOT_CACHE_TTL_SUCCESS,
+    TAXI_COUNT_HIGH,
+    TAXI_COUNT_MEDIUM,
+    TAXI_SCORE_HIGH,
+    TAXI_SCORE_LOW,
+    TAXI_SCORE_MEDIUM,
+    TAXI_SEARCH_RADIUS_M,
+    TRAFFIC_PENALTY_BAD_WEATHER,
+    TRAFFIC_PENALTY_GOOD_WEATHER,
+    TRAFFIC_SEARCH_RADIUS_M,
+    WEATHER_2HR_URL,
+    WEATHER_BONUS_BAD,
+    WEATHER_PENALTY_BAD,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -17,16 +37,16 @@ def distance_meters(a_lat, a_lng, b_lat, b_lng):
 
 
 def distance_discount(distance_meters_value):
-    buckets = max(distance_meters_value // 200, 0)
-    return round(0.9 ** buckets, 2)
+    buckets = max(distance_meters_value // DISTANCE_BUCKET_METERS, 0)
+    return round(DISTANCE_DECAY_FACTOR ** buckets, 2)
 
 
 def taxi_score_from_count(count):
-    if count >= 5:
-        return 90
-    if count >= 2:
-        return 60
-    return 30
+    if count >= TAXI_COUNT_HIGH:
+        return TAXI_SCORE_HIGH
+    if count >= TAXI_COUNT_MEDIUM:
+        return TAXI_SCORE_MEDIUM
+    return TAXI_SCORE_LOW
 
 
 def is_bad_weather_label(label):
@@ -76,7 +96,7 @@ def fetch_lta_carparks(destination):
     return result
 
 
-def fetch_lta_taxis(destination, radius_m=3000):
+def fetch_lta_taxis(destination, radius_m=TAXI_SEARCH_RADIUS_M):
     if not settings.LTA_ACCOUNT_KEY:
         logger.debug("LTA_ACCOUNT_KEY not set — skipping taxi fetch")
         return None
@@ -97,7 +117,7 @@ def fetch_lta_taxis(destination, radius_m=3000):
     return count
 
 
-def fetch_lta_traffic(destination, radius_m=2500):
+def fetch_lta_traffic(destination, radius_m=TRAFFIC_SEARCH_RADIUS_M):
     if not settings.LTA_ACCOUNT_KEY:
         logger.debug("LTA_ACCOUNT_KEY not set — skipping traffic fetch")
         return {"camera_location": destination["label"], "image_url": None, "captured_at": None, "status": "unavailable"}
@@ -212,7 +232,7 @@ def get_transport_snapshot(destination):
         if snapshot and snapshot.get("carparks"):
             if cache:
                 try:
-                    cache.set(cache_key, snapshot, _SNAPSHOT_CACHE_TTL)
+                    cache.set(cache_key, snapshot, SNAPSHOT_CACHE_TTL_SUCCESS)
                 except Exception:
                     logger.warning("Failed to write transport snapshot to cache", exc_info=True)
             return snapshot
@@ -315,12 +335,13 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
     filtered = [cp for cp in snapshot["carparks"] if cp["distance_m"] <= walking_limit]
     best_carpark = filtered[0] if filtered else min(snapshot["carparks"], key=lambda cp: cp["distance_m"])
 
-    weather_penalty = -20 if snapshot["weather"]["bad_weather"] else 0
-    weather_bonus = 20 if snapshot["weather"]["bad_weather"] else 0
-    traffic_penalty = -15 if snapshot["weather"]["bad_weather"] else -5
+    bad_weather = snapshot["weather"]["bad_weather"]
+    weather_penalty = WEATHER_PENALTY_BAD if bad_weather else 0
+    weather_bonus = WEATHER_BONUS_BAD if bad_weather else 0
+    traffic_penalty = TRAFFIC_PENALTY_BAD_WEATHER if bad_weather else TRAFFIC_PENALTY_GOOD_WEATHER
     drive_score = max(0, round((best_carpark["occupancy_rate"] * 100 * distance_discount(best_carpark["distance_m"])) + traffic_penalty + weather_penalty, 2))
     taxi_score = taxi_score_from_count(snapshot["taxis_available"]) + weather_bonus
-    public_transport_score = 75 + weather_penalty if pt_availability["available"] else 0
+    public_transport_score = PT_BASE_SCORE + weather_penalty if pt_availability["available"] else 0
 
     adjusted_scores = apply_preference(
         {"drive": drive_score, "taxi": taxi_score, "public_transport": public_transport_score},

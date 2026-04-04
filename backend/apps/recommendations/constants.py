@@ -4,10 +4,6 @@ LTA_TRAFFIC_URL = "https://datamall2.mytransport.sg/ltaodataservice/Traffic-Imag
 WEATHER_2HR_URL = "https://api.data.gov.sg/v1/environment/2-hour-weather-forecast"
 
 
-_SNAPSHOT_CACHE_TTL = 90
-
-
-
 # Scoring weights
 WEATHER_PENALTY_BAD = -20
 WEATHER_BONUS_BAD = 20
@@ -25,6 +21,10 @@ TAXI_SCORE_HIGH = 90
 TAXI_COUNT_MEDIUM = 2
 TAXI_SCORE_MEDIUM = 60
 TAXI_SCORE_LOW = 30
+
+# Radius limits for LTA data fetching
+TAXI_SEARCH_RADIUS_M = 3000
+TRAFFIC_SEARCH_RADIUS_M = 2500
 
 # Cache TTLs
 SNAPSHOT_CACHE_TTL_SUCCESS = 300  # 5 min
