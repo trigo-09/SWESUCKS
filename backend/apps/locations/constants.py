@@ -6,3 +6,7 @@ REVERSE_GEOCODE_URLS = [
     "https://www.onemap.gov.sg/api/common/elastic/revgeocode",
 ]
 BOUNDARY_URL = "apps/locations/SLALandSurveyDistrict.geojson"
+
+
+TOKEN_EXPIRY_BUFFER = 60
+TOKEN_EXPIRY_THRESHOLD = 300
