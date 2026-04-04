@@ -1,20 +1,15 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.conf import settings
 from django.core.cache import caches
 
 from apps.common.utils import fetch_json, haversine_meters
 from apps.locations.services import build_route
+from .constants import LTA_CARPARK_URL,LTA_TAXI_URL,LTA_TRAFFIC_URL,WEATHER_2HR_URL,_SNAPSHOT_CACHE_TTL
 
 
 logger = logging.getLogger(__name__)
-
-LTA_CARPARK_URL = "https://datamall2.mytransport.sg/ltaodataservice/CarParkAvailabilityv2"
-LTA_TAXI_URL = "https://datamall2.mytransport.sg/ltaodataservice/Taxi-Availability"
-LTA_TRAFFIC_URL = "https://datamall2.mytransport.sg/ltaodataservice/Traffic-Imagesv2"
-WEATHER_2HR_URL = "https://api.data.gov.sg/v1/environment/2-hour-weather-forecast"
-
-_SNAPSHOT_CACHE_TTL = 90  # seconds
 
 
 def distance_meters(a_lat, a_lng, b_lat, b_lng):
@@ -165,9 +160,6 @@ def fetch_weather(destination):
 
 def fetch_live_snapshot(destination):
     """Fetch a live transport snapshot, treating each data source independently.
-
-    Returns None only if both carparks AND taxis are unavailable (no LTA key).
-    Traffic and weather failures degrade gracefully to safe fallback values.
     """
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {
@@ -310,11 +302,14 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
         "Generating recommendation: origin=%s destinations=%d preference=%s walking_limit=%s",
         origin.get("label"), len(destinations), preference_mode, max_walking_distance,
     )
+
     final_destination = destinations[-1]
     snapshot = get_transport_snapshot(final_destination)
+
     if not snapshot or not snapshot.get("carparks"):
         logger.warning("No carpark data available for %s", final_destination.get("label"))
         raise RuntimeError("No car parks available near this destination.")
+
     pt_availability = is_public_transport_available(origin, final_destination)
     walking_limit = int(max_walking_distance)
     filtered = [cp for cp in snapshot["carparks"] if cp["distance_m"] <= walking_limit]
@@ -331,9 +326,11 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
         {"drive": drive_score, "taxi": taxi_score, "public_transport": public_transport_score},
         preference_mode,
     )
+
     recommended_mode = max(adjusted_scores, key=adjusted_scores.get)
     logger.info("Recommendation result: mode=%s scores=%s", recommended_mode, adjusted_scores)
     context = {"best_carpark": best_carpark, "snapshot": snapshot, "destination": final_destination}
+
     return {
         "provider_mode": snapshot["provider_mode"],
         "recommended_mode": recommended_mode,
