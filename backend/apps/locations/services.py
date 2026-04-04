@@ -141,8 +141,6 @@ def normalize_public_transport_itinerary(itinerary):
     }
 
 onemap_cache = caches["onemap"]
-TOKEN_EXPIRY_BUFFER = 60
-TOKEN_EXPIRY_THRESHOLD = 300
 def get_onemap_token():
     token = onemap_cache.get("access_token")
     if token:
