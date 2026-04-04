@@ -169,10 +169,26 @@ def fetch_live_snapshot(destination):
     Returns None only if both carparks AND taxis are unavailable (no LTA key).
     Traffic and weather failures degrade gracefully to safe fallback values.
     """
-    carparks = fetch_lta_carparks(destination)
-    taxis_available = fetch_lta_taxis(destination)
-    traffic = fetch_lta_traffic(destination)
-    weather = fetch_weather(destination)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            'carparks': executor.submit(fetch_lta_carparks, destination),
+            'taxis': executor.submit(fetch_lta_taxis, destination),
+            'traffic': executor.submit(fetch_lta_traffic, destination),
+            'weather': executor.submit(fetch_weather, destination),
+        }
+
+        results = {}
+        for name, future in futures.items():
+            try:
+                results[name] = future.result(timeout=10)  # Prevent hangs
+            except Exception as e:
+                logger.warning(f"{name} fetch failed: {e}")
+                results[name] = None
+
+    carparks = results.get('carparks')
+    taxis_available = results.get('taxis')
+    traffic = results.get('traffic')
+    weather = results.get('weather')
 
     if carparks is None and taxis_available is None:
         logger.info("No live carpark/taxi data available for %s", destination.get("label"))
