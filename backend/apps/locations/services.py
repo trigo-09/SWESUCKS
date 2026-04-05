@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.core.cache import caches
 from apps.common.utils import estimate_distance_meters, fetch_json
-from .constants import AUTH_URL, ROUTE_URL, REVERSE_GEOCODE_URLS, BOUNDARY_URL, SEARCH_URL
+from .constants import AUTH_URL, ROUTE_URL, REVERSE_GEOCODE_URLS, BOUNDARY_URL, SEARCH_URL,TOKEN_EXPIRY_THRESHOLD,TOKEN_EXPIRY_BUFFER
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +141,6 @@ def normalize_public_transport_itinerary(itinerary):
     }
 
 onemap_cache = caches["onemap"]
-TOKEN_EXPIRY_BUFFER = 60
-TOKEN_EXPIRY_THRESHOLD = 300
 def get_onemap_token():
     token = onemap_cache.get("access_token")
     if token:
