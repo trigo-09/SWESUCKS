@@ -47,45 +47,10 @@ Press `Ctrl+C` to stop both servers.
 
 ## Prerequisites
 
-- Python 3.11+ with Django installed (`pip install -r requirements.txt`)
-- Node.js 18+
+- Python 3.11+ with Django installed 
+- Node.js 18+  
+`pip install -r requirements.txt`
 
-## Environment variables
-
-Create `backend/.env` with the following:
-
-```
-DJANGO_SECRET_KEY=your-secret-key
-DJANGO_DEBUG=true
-DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
-FRONTEND_URL=http://localhost:5173
-
-# Email (for OTP)
-EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_HOST_USER=your@email.com
-EMAIL_HOST_PASSWORD=your-app-password
-EMAIL_USE_TLS=true
-
-# Google OAuth
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-# OneMap (Singapore routing)
-ONEMAP_EMAIL=your@email.com
-ONEMAP_PASSWORD=your-onemap-password
-
-# LTA DataMall (live carpark / taxi / traffic data)
-LTA_ACCOUNT_KEY=your-lta-key
-```
-
-Create `frontend/.env` with:
-
-```
-VITE_API_BASE_URL=http://127.0.0.1:8000/api
-VITE_GOOGLE_CLIENT_ID=your-google-client-id
-```
 
 ## Manual setup (if not using start.sh)
 
