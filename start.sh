@@ -61,19 +61,28 @@ cleanup() {
     warn "Shutting down..."
     [ -n "$BACKEND_PID" ]  && kill "$BACKEND_PID"  2>/dev/null
     [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null
-    wait 2>/dev/null
+    # Wait up to 2s for graceful exit, then force kill
+    for _ in 1 2; do
+        sleep 1
+        [ -n "$BACKEND_PID" ]  && kill -0 "$BACKEND_PID"  2>/dev/null || BACKEND_PID=""
+        [ -n "$FRONTEND_PID" ] && kill -0 "$FRONTEND_PID" 2>/dev/null || FRONTEND_PID=""
+        [ -z "$BACKEND_PID" ] && [ -z "$FRONTEND_PID" ] && break
+    done
+    [ -n "$BACKEND_PID" ]  && kill -9 "$BACKEND_PID"  2>/dev/null || true
+    [ -n "$FRONTEND_PID" ] && kill -9 "$FRONTEND_PID" 2>/dev/null || true
     info "Stopped."
+    exit 0
 }
 trap cleanup INT TERM
 
 # ── Start backend ────────────────────────────
 info "Starting Django backend on http://127.0.0.1:8000 ..."
-"$PYTHON" "$BACKEND/manage.py" runserver 2>&1 | sed "s/^/  [backend] /" &
+"$PYTHON" "$BACKEND/manage.py" runserver &
 BACKEND_PID=$!
 
 # ── Start frontend ───────────────────────────
 info "Starting Vite frontend on http://localhost:5173 ..."
-npm --prefix "$FRONTEND" run dev 2>&1 | sed "s/^/  [frontend] /" &
+npm --prefix "$FRONTEND" run dev &
 FRONTEND_PID=$!
 
 echo ""
