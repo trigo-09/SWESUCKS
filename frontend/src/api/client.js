@@ -1,4 +1,10 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
+const rawApiBase = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1").trim();
+const normalizedApiBase = rawApiBase.replace(/\/$/, "");
+const API_BASE = /\/api\/v1$/i.test(normalizedApiBase)
+  ? normalizedApiBase
+  : /\/api$/i.test(normalizedApiBase)
+    ? `${normalizedApiBase}/v1`
+    : normalizedApiBase;
 
 async function request(path, options = {}) {
   const token = localStorage.getItem("golah_token");
@@ -12,7 +18,17 @@ async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.detail || data.non_field_errors?.[0] || Object.values(data)[0] || "Request failed");
+    const fieldErrors = data.errors || data;
+    const firstFieldError = Object.values(fieldErrors || {}).find((value) =>
+      Array.isArray(value) ? value[0] : typeof value === "string",
+    );
+
+    throw new Error(
+      data.detail ||
+        (Array.isArray(firstFieldError) ? firstFieldError[0] : firstFieldError) ||
+        data.non_field_errors?.[0] ||
+        "Request failed",
+    );
   }
   return data;
 }

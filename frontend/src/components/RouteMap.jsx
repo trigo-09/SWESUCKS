@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap, useMapEvents, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { api } from "../api/client";
 
 import icon2x from "leaflet/dist/images/marker-icon-2x.png";
 import icon from "leaflet/dist/images/marker-icon.png";
@@ -15,395 +14,349 @@ L.Icon.Default.mergeOptions({
   shadowUrl: shadow
 });
 
-function FitBounds({ markers, routeLine }) {
+const BEST_CARPARK_ICON = L.divIcon({
+  className: "best-carpark-marker",
+  html: `
+    <div style="
+      width: 22px;
+      height: 22px;
+      border-radius: 9999px;
+      background: #dc2626;
+      border: 3px solid white;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    ">P</div>
+  `,
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+  popupAnchor: [0, -12],
+});
+
+const CARPARK_ICON = L.divIcon({
+  className: "carpark-marker",
+  html: `
+    <div style="
+      width: 20px;
+      height: 20px;
+      border-radius: 9999px;
+      background: #0f766e;
+      border: 3px solid white;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    ">P</div>
+  `,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+  popupAnchor: [0, -12],
+});
+
+const ROUTE_COLORS = [
+  "#1d4ed8",
+
+];
+
+const SINGAPORE_BOUNDS = [
+  [1.20, 103.60],
+  [1.48, 104.05],
+];
+
+function getRouteColor(segmentIndex) {
+  if (!Number.isFinite(segmentIndex)) {
+    return ROUTE_COLORS[0];
+  }
+
+  return ROUTE_COLORS[(Math.max(1, segmentIndex) - 1) % ROUTE_COLORS.length];
+}
+
+function getSegmentColor(segment) {
+  if (segment?.variant === "best_carpark") {
+    return segment.color || "#dc2626";
+  }
+
+  return getRouteColor(segment?.index);
+}
+
+function getMarkerIcon(markerType) {
+  if (markerType === "best_carpark") {
+    return BEST_CARPARK_ICON;
+  }
+
+  if (markerType === "carpark") {
+    return CARPARK_ICON;
+  }
+
+  return undefined;
+}
+
+function FitBounds({ markers, routeLine, isMobile }) {
   const map = useMap();
+  const lastBoundsKeyRef = useRef("");
+  const mobileFitView = useMemo(
+    () => ({
+      paddingTopLeft: [72, 72],
+      paddingBottomRight: [72, 120],
+      animate: false,
+    }),
+    [],
+  );
+  const desktopSingaporeView = useMemo(
+    () => ({
+      paddingTopLeft: [360, 48],
+      paddingBottomRight: [16, 48],
+      maxZoom: 10.5,
+      animate: false,
+    }),
+    [],
+  );
 
   useEffect(() => {
     if (routeLine.length >= 2) {
-      map.fitBounds(routeLine, { padding: [30, 30] });
+      const routeBoundsPoints = [
+        ...routeLine,
+        ...markers
+          .filter(
+            (item) =>
+              Number.isFinite(item?.latitude) && Number.isFinite(item?.longitude),
+          )
+          .map((item) => [item.latitude, item.longitude]),
+      ];
+      const routeKey = routeBoundsPoints.map((point) => point.join(",")).join("|");
+      if (lastBoundsKeyRef.current === routeKey) {
+        return;
+      }
+      lastBoundsKeyRef.current = routeKey;
+
+      if (isMobile) {
+        map.fitBounds(routeBoundsPoints, mobileFitView);
+      } else {
+        const viewportWidth =
+          typeof window !== "undefined" ? window.innerWidth : map.getSize().x;
+        const headerOverlayWidth = Math.round(viewportWidth * 0.36);
+        const panelOverlayWidth = 118 + 430 + 24;
+        const desktopFitView = {
+          paddingTopLeft: [Math.max(headerOverlayWidth, panelOverlayWidth), 132],
+          paddingBottomRight: [56, 72],
+          maxZoom: 17,
+          animate: false,
+        };
+
+        map.fitBounds(routeBoundsPoints, desktopFitView);
+      }
       return;
     }
     if (markers.length > 0) {
-      map.fitBounds(markers.map((item) => [item.latitude, item.longitude]), { padding: [30, 30] });
+      const markerPoints = markers.map((item) => [item.latitude, item.longitude]);
+      const markerKey = markerPoints.map((point) => point.join(",")).join("|");
+      if (lastBoundsKeyRef.current === markerKey) {
+        return;
+      }
+      lastBoundsKeyRef.current = markerKey;
+
+      if (isMobile) {
+        map.fitBounds(markerPoints, mobileFitView);
+      } else if (markerPoints.length === 1) {
+        map.setView(markerPoints[0], 17, { animate: false });
+      } else {
+        map.fitBounds(SINGAPORE_BOUNDS, desktopSingaporeView);
+      }
     }
-  }, [map, markers, routeLine]);
+  }, [desktopSingaporeView, isMobile, map, markers, mobileFitView, routeLine]);
 
   return null;
 }
 
-export default function RouteMap({ origin, destinations, markers = [], routeType = "drive" }) {
-  const [routeLine, setRouteLine] = useState([]);
-  const [routeInfo, setRouteInfo] = useState(null);
-  const [routeDetails, setRouteDetails] = useState(null);
-
-  const validDestinations = useMemo(
-    () => (destinations || []).filter((point) => isValidLocationPoint(point)),
-    [destinations]
-  );
-
-  useEffect(() => {
-    const loadRoute = async () => {
-      if (!isValidLocationPoint(origin) || validDestinations.length === 0) {
-        setRouteLine([]);
-        setRouteInfo(null);
-        setRouteDetails(null);
+function MapClickSelector({ activeSelectionTarget, onMapSelect }) {
+  useMapEvents({
+    click(event) {
+      if (!activeSelectionTarget || !onMapSelect) {
         return;
       }
-      try {
-        const data = await api.post("/locations/route-preview/", {
-          origin,
-          destinations: validDestinations,
-          route_type: routeType
-        });
 
-        const route = data?.route || data || {};
-        const primaryCoords = normalizePolylineCoordinates(route.coords || []);
-        const segmentCoords = combineSegmentCoordinates(route.segments || []);
-        setRouteLine(primaryCoords.length >= 2 ? primaryCoords : segmentCoords);
+      onMapSelect({
+        latitude: event.latlng.lat,
+        longitude: event.latlng.lng,
+      });
+    },
+  });
 
-        const hasFallbackSegment =
-          Array.isArray(route.segments) &&
-          route.segments.some((segment) => segment?.provider_mode === "fallback");
+  return null;
+}
 
-        setRouteInfo(
-          route.summary || {
-            provider_mode: route.segments?.[0]?.provider_mode || route.provider_mode || "fallback",
-            route_type: route.route_type || routeType,
-            distance_m: route.total_distance_m ?? null,
-            duration_s: route.total_duration_s ?? null,
-            message: hasFallbackSegment ? "Some route segments used fallback data." : route.message || ""
-          }
-        );
+function MapResizeFix() {
+  const map = useMap();
 
-        setRouteDetails(
-          route.details || {
-            provider_mode: route.segments?.[0]?.provider_mode || route.provider_mode || "multi-stop",
-            route_summary: {
-              total_distance_m: route.total_distance_m,
-              total_duration_s: route.total_duration_s,
-              num_stops: route.num_stops
-            },
-            segments: route.segments || []
-          }
-        );
-      } catch {
-        setRouteLine([
-          [Number(origin.latitude), Number(origin.longitude)],
-          ...validDestinations.map((point) => [Number(point.latitude), Number(point.longitude)])
-        ]);
-        setRouteInfo({
-          provider_mode: "fallback",
-          route_type: routeType,
-          distance_m: null,
-          duration_s: null,
-          message: "Route details are unavailable right now."
-        });
-        setRouteDetails({ provider_mode: "fallback" });
-      }
-    };
-    loadRoute();
-  }, [origin, validDestinations, routeType]);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      map.invalidateSize();
+    }, 220);
+
+    return () => clearTimeout(timeout);
+  }, [map]);
+
+  return null;
+}
+
+function DefaultCenterView({ center, zoom, hasActiveView }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (hasActiveView) {
+      return;
+    }
+
+    map.setView(center, zoom, { animate: false });
+  }, [center, hasActiveView, map, zoom]);
+
+  return null;
+}
+
+export default function RouteMap({
+  origin,
+  destinations,
+  markers = [],
+  segmentRoutes = [],
+  activeSelectionTarget = "",
+  onMapSelect = null,
+  isMobile = false,
+}) {
+  const defaultZoom = isMobile ? 10.4 : 10.5;
+  const defaultCenter = useMemo(
+    () => (isMobile ? [1.3521, 103.8198] : [1.3521, 102.5898]),
+    [isMobile],
+  );
+  
+  const activeSegmentLines = useMemo(
+    () => segmentRoutes.filter((segment) => Array.isArray(segment.coords) && segment.coords.length >= 2),
+    [segmentRoutes],
+  );
+  const displayRouteLine = useMemo(
+    () => activeSegmentLines.flatMap((segment) => segment.coords),
+    [activeSegmentLines],
+  );
 
   const mapMarkers = useMemo(() => {
-    if (markers.length > 0) return markers.filter((point) => isValidLocationPoint(point));
+    if (markers.length > 0) {
+      return markers;
+    }
 
     return [
-      ...(isValidLocationPoint(origin)
-        ? [{ type: "origin", label: origin.label, latitude: origin.latitude, longitude: origin.longitude }]
+      ...(origin
+        ? [
+            {
+              type: "origin",
+              label: origin.label,
+              latitude: origin.latitude,
+              longitude: origin.longitude,
+            },
+          ]
         : []),
-      ...validDestinations.map((item, index) => ({
+      ...(destinations || []).map((item, index) => ({
         type: "destination",
         label: item.label,
         latitude: item.latitude,
         longitude: item.longitude,
-        sequence: index + 1
-      }))
+        sequence: index + 1,
+      })),
     ];
-  }, [markers, origin, validDestinations]);
+  }, [markers, origin, destinations]);
+
+  const hasActiveView = displayRouteLine.length >= 2 || mapMarkers.length > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="h-[420px] overflow-hidden rounded-[2rem] border border-brand-100">
-        <MapContainer center={[1.3521, 103.8198]} zoom={11} style={{ height: "100%", width: "100%" }}>
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    <div className="relative h-full w-full">
+      <MapContainer
+        center={defaultCenter}
+        zoom={defaultZoom}
+        minZoom={10}
+        zoomControl={false}
+        maxBounds={[
+          [1.10, 103.1],
+          [1.60, 104.5] 
+        ]}
+        maxBoundsViscosity={1.0}
+        className="h-full w-full"
+      >
+        
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        />
+
+        <ZoomControl position="topright" />
+        <MapResizeFix />
+        <DefaultCenterView
+          center={defaultCenter}
+          zoom={defaultZoom}
+          hasActiveView={hasActiveView}
+        />
+        <MapClickSelector
+          activeSelectionTarget={activeSelectionTarget}
+          onMapSelect={onMapSelect}
+        />
+        <FitBounds
+          markers={mapMarkers}
+          routeLine={displayRouteLine}
+          isMobile={isMobile}
+        />
+
+        {mapMarkers.map((marker, index) => (
+          <Marker
+            key={`${marker.type}-${marker.label}-${index}`}
+            position={[marker.latitude, marker.longitude]}
+            {...(getMarkerIcon(marker?.type)
+              ? { icon: getMarkerIcon(marker.type) }
+              : {})}
+          >
+            <Popup>
+              <div className="text-sm">
+                <div className="font-semibold">{marker.label}</div>
+                <div className="capitalize text-slate-500">
+                  {marker.type.replace("_", " ")}
+                </div>
+                {marker.destination_label && (
+                  <div className="mt-1 text-xs text-slate-500">
+                    Destination {marker.sequence}: {marker.destination_label}
+                  </div>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {activeSegmentLines.map((segment) => (
+          <Polyline
+            key={`segment-${segment.variant || "main"}-${segment.index}-${segment.origin}-${segment.destination}`}
+            positions={segment.coords}
+            color={getSegmentColor(segment)}
+            weight={5}
+            opacity={0.92}
           />
-          <FitBounds markers={mapMarkers} routeLine={routeLine} />
-          {mapMarkers.map((marker, index) => (
-            <Marker key={`${marker.type}-${marker.label}-${index}`} position={[marker.latitude, marker.longitude]}>
-              <Popup>
-                <div className="text-sm">
-                  <div className="font-semibold">{marker.label}</div>
-                  <div className="capitalize text-slate-500">{marker.type.replace("_", " ")}</div>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-          {routeLine.length >= 2 && <Polyline positions={routeLine} color="#12715d" weight={4} />}
-        </MapContainer>
-      </div>
+        ))}
 
-      {routeInfo && (
-        <div className="grid gap-3 rounded-[2rem] border border-brand-100 bg-brand-50/50 p-5 md:grid-cols-4">
-          <InfoCard label="Route type" value={prettyRouteType(routeInfo.route_type)} />
-          <InfoCard label="Distance" value={formatDistance(routeInfo.distance_m)} />
-          <InfoCard label="Estimated duration" value={formatDuration(routeInfo.duration_s)} />
-          <InfoCard label="Provider" value={routeInfo.provider_mode} />
-          {routeInfo.message && (
-            <div className="md:col-span-4 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
-              {routeInfo.message}
-            </div>
-          )}
-        </div>
-      )}
+      </MapContainer>
 
-      {routeDetails && (
-        <div className="space-y-4 rounded-[2rem] border border-brand-100 bg-white p-5">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-brand-500">Route information</p>
-            <h4 className="mt-2 text-xl font-semibold text-ink">OneMap route details</h4>
+      {activeSelectionTarget && (
+        <div className="pointer-events-none absolute left-1/2 top-24 z-[500] -translate-x-1/2 px-3">
+          <div className="rounded-full border border-blue-200 bg-white/96 px-4 py-2 text-sm font-medium text-blue-700 shadow-lg backdrop-blur">
+            Click on the map to select{" "}
+            {activeSelectionTarget === "origin"
+              ? "the origin"
+              : `destination ${Number(activeSelectionTarget.split("-")[1]) + 1}`}
           </div>
-
-          <KeyValueGrid title="Route summary" data={routeDetails.route_summary || { provider_mode: routeDetails.provider_mode }} />
-
-          {Array.isArray(routeDetails.itineraries) && routeDetails.itineraries.length > 0 && (
-            <PtItinerarySection itineraries={routeDetails.itineraries} />
-          )}
-
-          {Array.isArray(routeDetails.via_points) && routeDetails.via_points.length > 0 && (
-            <Section title="Via points">
-              <pre className="overflow-auto rounded-2xl bg-slate-50 p-4 text-xs text-slate-700">
-                {JSON.stringify(routeDetails.via_points, null, 2)}
-              </pre>
-            </Section>
-          )}
-
-          {Array.isArray(routeDetails.route_instructions) && routeDetails.route_instructions.length > 0 && (
-            <Section title={`Route instructions (${routeDetails.route_instructions.length})`}>
-              <div className="space-y-3">
-                {routeDetails.route_instructions.map((instruction, index) => (
-                  <div key={`${instruction.instruction}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-sm font-medium text-ink">{index + 1}. {instruction.instruction || "Instruction"}</div>
-                    <div className="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-4">
-                      <MiniField label="Action" value={instruction.action} />
-                      <MiniField label="Road" value={instruction.road} />
-                      <MiniField label="Distance" value={instruction.distance_text} />
-                      <MiniField label="Coordinate" value={instruction.coordinate} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          <KeyValueGrid title="Additional fields" data={filterAdditionalFields(routeDetails)} />
         </div>
       )}
     </div>
   );
-}
-
-function isValidLocationPoint(point) {
-  return (
-    !!point &&
-    Number.isFinite(Number(point.latitude)) &&
-    Number.isFinite(Number(point.longitude))
-  );
-}
-
-function normalizePolylineCoordinates(coords) {
-  return (coords || [])
-    .map((point) => {
-      if (Array.isArray(point) && point.length >= 2) {
-        const latitude = Number(point[0]);
-        const longitude = Number(point[1]);
-        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          return [latitude, longitude];
-        }
-      }
-
-      if (point && typeof point === "object") {
-        const latitude = Number(point.latitude ?? point.lat ?? point[0]);
-        const longitude = Number(point.longitude ?? point.lng ?? point[1]);
-        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          return [latitude, longitude];
-        }
-      }
-
-      return null;
-    })
-    .filter(Boolean);
-}
-
-function combineSegmentCoordinates(segments) {
-  const merged = [];
-
-  for (const segment of segments || []) {
-    const segmentCoordinates = normalizePolylineCoordinates(segment?.coords || segment?.coordinates || []);
-    if (segmentCoordinates.length === 0) {
-      continue;
-    }
-
-    if (merged.length > 0 && coordinatesEqual(merged[merged.length - 1], segmentCoordinates[0])) {
-      merged.push(...segmentCoordinates.slice(1));
-    } else {
-      merged.push(...segmentCoordinates);
-    }
-  }
-
-  return merged;
-}
-
-function coordinatesEqual(first, second, tolerance = 1e-6) {
-  return (
-    Math.abs(first[0] - second[0]) < tolerance &&
-    Math.abs(first[1] - second[1]) < tolerance
-  );
-}
-
-function filterAdditionalFields(details) {
-  const clone = { ...details };
-  delete clone.route_summary;
-  delete clone.route_instructions;
-  delete clone.via_points;
-  delete clone.itineraries;
-  delete clone.plan;
-  return clone;
-}
-
-function prettyRouteType(routeType) {
-  if (routeType === "drive") return "Drive";
-  if (routeType === "walk") return "Walk";
-  if (routeType === "cycle") return "Cycle";
-  if (routeType === "pt") return "Public transport";
-  return routeType;
-}
-
-function formatDistance(distanceM) {
-  if (distanceM == null) return "Unavailable";
-  return distanceM >= 1000 ? `${(distanceM / 1000).toFixed(1)} km` : `${distanceM} m`;
-}
-
-function formatDuration(durationS) {
-  if (durationS == null) return "Unavailable";
-  const minutes = Math.max(1, Math.round(durationS / 60));
-  return `${minutes} min`;
-}
-
-function InfoCard({ label, value }) {
-  return (
-    <div className="rounded-2xl bg-white px-4 py-3">
-      <div className="text-xs uppercase tracking-[0.2em] text-brand-500">{label}</div>
-      <div className="mt-2 text-lg font-semibold text-ink capitalize">{value}</div>
-    </div>
-  );
-}
-
-function Section({ title, children }) {
-  return (
-    <section className="space-y-3">
-      <h5 className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-500">{title}</h5>
-      {children}
-    </section>
-  );
-}
-
-function MiniField({ label, value }) {
-  return (
-    <div>
-      <div className="uppercase tracking-[0.15em] text-slate-400">{label}</div>
-      <div className="mt-1 text-slate-700">{value || "-"}</div>
-    </div>
-  );
-}
-
-function KeyValueGrid({ title, data }) {
-  const entries = Object.entries(data || {}).filter(([, value]) => value !== undefined && value !== null && value !== "");
-  if (entries.length === 0) return null;
-
-  return (
-    <Section title={title}>
-      <div className="grid gap-3 md:grid-cols-2">
-        {entries.map(([key, value]) => (
-          <div key={key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-xs uppercase tracking-[0.15em] text-slate-400">{formatKey(key)}</div>
-            <div className="mt-2 break-words text-sm text-slate-700">
-              {typeof value === "object" ? (
-                <pre className="overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(value, null, 2)}</pre>
-              ) : (
-                String(value)
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-function formatKey(key) {
-  return key.replaceAll("_", " ");
-}
-
-function PtItinerarySection({ itineraries }) {
-  return (
-    <Section title={`Public transport itineraries (${itineraries.length})`}>
-      <div className="space-y-4">
-        {itineraries.map((itinerary, index) => (
-          <div key={`itinerary-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-ink">Itinerary {index + 1}</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {formatDuration(itinerary.duration)} total
-                </div>
-              </div>
-              <div className="grid gap-2 text-xs text-slate-600 md:grid-cols-4">
-                <MiniField label="Fare" value={formatFare(itinerary.fare)} />
-                <MiniField label="Transfers" value={itinerary.transfers ?? "-"} />
-                <MiniField label="Walk distance" value={formatDistance(itinerary.walk_distance)} />
-                <MiniField label="Waiting" value={formatDuration(itinerary.waiting_time)} />
-              </div>
-            </div>
-
-            {Array.isArray(itinerary.legs) && itinerary.legs.length > 0 && (
-              <div className="mt-4 space-y-3">
-                {itinerary.legs.map((leg, legIndex) => (
-                  <div key={`leg-${index}-${legIndex}`} className="rounded-2xl bg-white p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-sm font-medium text-ink">
-                        {prettyLegMode(leg.mode)}
-                        {leg.route ? ` ${leg.route}` : ""}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {formatDuration(leg.duration)} • {formatDistance(leg.distance)}
-                      </div>
-                    </div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      {leg.from || "Origin"} to {leg.to || "Destination"}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-function prettyLegMode(mode) {
-  const value = String(mode || "").toLowerCase();
-  if (value === "walk") return "Walk";
-  if (value === "bus") return "Bus";
-  if (value === "rail" || value === "subway") return "Train";
-  return formatKey(String(mode || "leg"));
-}
-
-function formatFare(fare) {
-  if (fare == null || fare === "") return "Unavailable";
-  const numericFare = Number(fare);
-  return Number.isFinite(numericFare) ? `$${numericFare.toFixed(2)}` : String(fare);
 }

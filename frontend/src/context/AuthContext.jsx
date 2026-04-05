@@ -40,6 +40,4 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={{ user, setUser, loading, completeLogin, logout }}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export default AuthContext;
