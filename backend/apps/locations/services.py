@@ -140,6 +140,27 @@ def normalize_public_transport_itinerary(itinerary):
         "coords": coordinates,
     }
 
+def build_route_details(data, origin, destination, route_type, provider_mode):
+    summary = data.get("route_summary") or {}
+    route_name = data.get("route_name") or data.get("routeName") or summary.get("route_name") or summary.get("routeName")
+    alternative_paths = data.get("alternative_paths") or data.get("alternativePaths") or []
+
+    return {
+        "provider_mode": provider_mode,
+        "route_type": route_type,
+        "route_origin": origin.get("label"),
+        "route_destination": destination.get("label"),
+        "route_summary": {
+            "total_distance": int(float(summary.get("total_distance") or summary.get("totalDistance") or estimate_distance_meters(origin, destination))),
+            "total_time": int(float(summary.get("total_time") or summary.get("totalTime") or 0)),
+        },
+        "status": data.get("status") or ("success" if provider_mode == "live" else "fallback"),
+        "route_name": route_name,
+        "route_instructions": normalize_route_instructions(data.get("route_instructions") or data.get("routeInstructions") or []),
+        "alternative_paths": alternative_paths,
+    }
+
+
 onemap_cache = caches["onemap"]
 def get_onemap_token():
     token = onemap_cache.get("access_token")
@@ -329,6 +350,20 @@ def process_public_transport_route(data, origin, destination, route_type="pt"):
             "summary": summary,
             "details": {
                 "provider_mode": "fallback",
+                "route_details": {
+                    "provider_mode": "fallback",
+                    "route_type": route_type,
+                    "route_origin": origin.get("label"),
+                    "route_destination": destination.get("label"),
+                    "route_summary": {
+                        "total_distance": int(summary["distance_m"]),
+                        "total_time": int(summary["duration_s"]),
+                    },
+                    "status": "fallback",
+                    "route_name": None,
+                    "route_instructions": [],
+                    "alternative_paths": [],
+                },
                 "raw_response_excerpt": {
                     key: data.get(key) for key in data.keys()
                     if key in ["error", "status", "message", "plan"]
@@ -358,17 +393,32 @@ def process_public_transport_route(data, origin, destination, route_type="pt"):
         "summary": summary,
         "details": {
             "provider_mode": "live",
+            "route_details": {
+                "provider_mode": "live",
+                "route_type": route_type,
+                "route_origin": origin.get("label"),
+                "route_destination": destination.get("label"),
+                "route_summary": {
+                    "total_distance": int(summary["distance_m"]),
+                    "total_time": int(summary["duration_s"]),
+                },
+                "status": "success",
+                "route_name": None,
+                "route_instructions": [],
+                "alternative_paths": normalised_data[1:],
+            },
             "plan": data.get("plan"),
             "itineraries": normalised_data,
         }
     }
 
-def create_fallback_route(origin, destination,route_type,reason,error_message=None):
+def create_fallback_route(origin, destination, route_type, reason, error_message=None):
     summary = normalize_route_summary({}, route_type, origin, destination, "fallback")
-    summary["message"] = f"A simplified fallback route was created because the live route request failed."
+    summary["message"] = "A simplified fallback route was created because the live route request failed."
     summary["fallback_reason"] = reason
     if error_message:
         summary["error_message"] = error_message
+
     return {
         "route_type": route_type,
         "coords": [
@@ -376,26 +426,51 @@ def create_fallback_route(origin, destination,route_type,reason,error_message=No
             [destination["latitude"], destination["longitude"]],
         ],
         "summary": summary,
-        "details": {"provider_mode": "fallback"},
+        "details": {
+            "provider_mode": "fallback",
+            "route_details": {
+                "provider_mode": "fallback",
+                "route_type": route_type,
+                "route_origin": origin.get("label") if origin else None,
+                "route_destination": destination.get("label") if destination else None,
+                "route_summary": {
+                    "total_distance": int(summary["distance_m"]),
+                    "total_time": int(summary["duration_s"]),
+                },
+                "status": "fallback",
+                "route_name": None,
+                "route_instructions": [],
+                "alternative_paths": [],
+                "fallback_reason": reason,
+                "error_message": error_message,
+            },
+        },
     }
 
 
 
-def process_other_route(data, origin, destination, route_type="drive"):#walking,driving
+def process_other_route(data, origin, destination, route_type="drive"):
     route_geometry = data.get("route_geometry")
     if route_geometry:
+        route_details = build_route_details(data, origin, destination, route_type, "live")
         return {
             "route_type": route_type,
             "coords": decode_polyline(route_geometry),
-            "summary": normalize_route_summary(data.get("route_summary") or {}, route_type, origin, destination, "live"),
+            "summary": normalize_route_summary(
+                data.get("route_summary") or {},
+                route_type,
+                origin,
+                destination,
+                "live",
+            ),
             "details": {
                 "provider_mode": "live",
+                "route_details": route_details,
                 "route_summary": data.get("route_summary") or {},
-
             },
         }
 
-    return create_fallback_route(origin,destination,route_type,"unexpected response shape")
+    return create_fallback_route(origin, destination, route_type, "unexpected response shape")
 
 
 
@@ -434,6 +509,7 @@ def extract_segment_data(segment_route, from_pt, to_pt, index):
         "coords": coordinates,
         "provider_mode": segment_route.get("details", {}).get("provider_mode", "fallback"),
         "fallback_reason": summary.get("fallback_reason", "unknown"),
+        "route_details": segment_route.get("details", {}).get("route_details"),
     }
 
 def normalize_coordinate_pair(coord):
@@ -484,18 +560,35 @@ def coordinates_match(coord1, coord2, tolerance=1e-6):
 def build_multi_stop_route(origin, stops, route_type="drive", MAX_WALK_DISTANCE=500):
     waypoints = [origin] + list(stops or [])
     segments, final_path = [], []
+    segment_details = []
 
     for point in range(len(waypoints) - 1):
-        segment_route = build_route(waypoints[point], waypoints[point + 1], route_type, MAX_WALK_DISTANCE)
+        segment_route = build_route(
+            waypoints[point],
+            waypoints[point + 1],
+            route_type,
+            MAX_WALK_DISTANCE,
+        )
         segment_coordinates = segment_route.get("coords") or []
+        route_details = segment_route.get("details", {}).get("route_details")
 
-        segments.append(extract_segment_data(segment_route, waypoints[point], waypoints[point + 1], point))
+        segments.append(
+            extract_segment_data(
+                segment_route,
+                waypoints[point],
+                waypoints[point + 1],
+                point,
+            )
+        )
         final_path = merge_segment_routes(final_path, segment_coordinates)
+
+        if route_details:
+            segment_details.append(route_details)
 
     total_distance = sum(s["distance_m"] for s in segments)
     total_duration = sum(s["duration_s"] for s in segments)
 
-    return {
+    response = {
         "route_type": route_type,
         "segments": segments,
         "total_distance_m": total_distance,
@@ -503,5 +596,12 @@ def build_multi_stop_route(origin, stops, route_type="drive", MAX_WALK_DISTANCE=
         "num_stops": len(stops or []),
         "coords": final_path,
     }
+
+    if len(segment_details) == 1:
+        response["route_details"] = segment_details[0]
+    elif segment_details:
+        response["route_details"] = segment_details
+
+    return response
 
 

@@ -381,7 +381,7 @@ export function JourneyLegCard({
 
       {expanded && details && (
         <div className={`mt-4 pr-1 ${fillContainer ? "" : "max-h-[34vh] overflow-y-auto"}`}>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Route Information</p>
+            
           <RouteDetailsPanel details={details} routeType={routeType} />
 
           {leg.recommended_mode === "drive" && carparkRouteSummary && (
@@ -510,7 +510,6 @@ export function RouteSummaryGrid({ summary }) {
 export function RouteDetailsPanel({ details, routeType }) {
   const primaryItinerary = details.itineraries?.[0] || null;
   const instructionList = details.route_instructions || [];
-  const segmentList = details.segments || [];
 
   return (
     <div className="space-y-3">
@@ -540,7 +539,8 @@ export function RouteDetailsPanel({ details, routeType }) {
 
       {routeType === "pt" && primaryItinerary && (
         <div className="rounded-2xl bg-slate-50 py-3 text-sm text-slate-700">
-          <div className="grid gap-2 grid-cols-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Route Information</p>
+          <div className="mt-2 grid gap-2 grid-cols-2">
             <DetailItem label="Fare" value={formatFare(primaryItinerary.fare)} />
             <DetailItem label="Transfers" value={displayValue(primaryItinerary.transfers)} />
             <DetailItem
