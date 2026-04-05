@@ -1,11 +1,11 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 from django.conf import settings
 from django.core.cache import caches
 
 from apps.common.utils import fetch_json, haversine_meters
-from apps.locations.services import build_multi_stop_route
+from apps.locations.services import build_multi_stop_route, build_route
 from .constants import (
     DISTANCE_BUCKET_METERS,
     DISTANCE_DECAY_FACTOR,
@@ -318,21 +318,46 @@ def build_map_markers(origin, destinations, snapshot, best_carpark):
         )
     return markers
 
+def mode_to_route_type(mode):
+    return {
+        "drive": "drive",
+        "taxi": "drive",
+        "public_transport": "pt",
+        "walk": "walk",
+    }.get(mode, "drive")
 
-def generate_recommendation(origin, destinations, preference_mode, max_walking_distance):
-    logger.info(
-        "Generating recommendation: origin=%s destinations=%d preference=%s walking_limit=%s",
-        origin.get("label"), len(destinations), preference_mode, max_walking_distance,
-    )
+def normalize_leg_route_preview(route_preview):
+    if not route_preview:
+        return None
 
-    final_destination = destinations[-1]
-    snapshot = get_transport_snapshot(final_destination)
+    details = route_preview.get("details") or {}
+    flattened_details = dict(details.get("route_details") or {})
 
+    for key in ("provider_mode", "plan", "itineraries", "raw_response_excerpt", "error"):
+        if key in details and key not in flattened_details:
+            flattened_details[key] = details[key]
+
+    if (
+        "route_origin" not in flattened_details
+        and route_preview.get("summary", {}).get("route_type") == "pt"
+    ):
+        flattened_details["route_origin"] = None
+        flattened_details["route_destination"] = None
+
+    return {
+        "route_type": route_preview.get("route_type"),
+        "coords": route_preview.get("coords") or [],
+        "summary": route_preview.get("summary") or {},
+        "details": flattened_details,
+    }
+
+def generate_leg_recommendation(origin, destination, preference_mode, max_walking_distance):
+    snapshot = get_transport_snapshot(destination)
     if not snapshot or not snapshot.get("carparks"):
-        logger.warning("No carpark data available for %s", final_destination.get("label"))
+        logger.warning("No carpark data available for %s", destination.get("label"))
         raise RuntimeError("No car parks available near this destination.")
 
-    pt_availability = is_public_transport_available(origin, destinations)
+    pt_availability = is_public_transport_available(origin, [destination])
     walking_limit = int(max_walking_distance)
     filtered = [cp for cp in snapshot["carparks"] if cp["distance_m"] <= walking_limit]
     best_carpark = filtered[0] if filtered else min(snapshot["carparks"], key=lambda cp: cp["distance_m"])
@@ -351,24 +376,172 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
     )
 
     recommended_mode = max(adjusted_scores, key=adjusted_scores.get)
-    logger.info("Recommendation result: mode=%s scores=%s", recommended_mode, adjusted_scores)
-    context = {"best_carpark": best_carpark, "snapshot": snapshot, "destination": final_destination}
+    context = {"best_carpark": best_carpark, "snapshot": snapshot, "destination": destination}
+
+    route_preview = normalize_leg_route_preview(
+        build_route(origin, destination, mode_to_route_type(recommended_mode))
+    )
+    best_carpark_location = {
+        "label": best_carpark["name"],
+        "latitude": best_carpark["latitude"],
+        "longitude": best_carpark["longitude"],
+    }
+    best_carpark_route = normalize_leg_route_preview(
+        build_route(destination, best_carpark_location, "drive")
+    )
 
     return {
         "provider_mode": snapshot["provider_mode"],
+        "origin": origin,
+        "destination": destination,
         "recommended_mode": recommended_mode,
         "scores": adjusted_scores,
-        "raw_scores": {"drive": drive_score, "taxi": taxi_score, "public_transport": public_transport_score},
+        "raw_scores": {
+            "drive": drive_score,
+            "taxi": taxi_score,
+            "public_transport": public_transport_score,
+        },
         "justifications": build_justifications(recommended_mode, context),
         "traffic": snapshot["traffic"],
         "weather": snapshot["weather"],
         "carparks": snapshot["carparks"],
-        "map_markers": build_map_markers(origin, destinations, snapshot, best_carpark),
         "best_carpark": best_carpark,
         "public_transport_available": pt_availability["available"],
         "public_transport_route": pt_availability["route"],
         "public_transport_fallback_reason": pt_availability["fallback_reason"],
+        "route_preview": route_preview,
+        "best_carpark_route": best_carpark_route,
+    }
+
+
+def generate_recommendation(origin, destinations, preference_mode, max_walking_distance):
+    logger.info(
+        "Generating recommendation: origin=%s destinations=%d preference=%s walking_limit=%s",
+        origin.get("label"), len(destinations), preference_mode, max_walking_distance,
+    )
+
+    leg_recommendations = []
+    previous_point = origin
+
+    for destination in destinations:
+        leg_recommendations.append(
+            generate_leg_recommendation(previous_point, destination, preference_mode, max_walking_distance)
+        )
+        previous_point = destination
+
+    final_leg = leg_recommendations[-1]
+
+    aggregate_scores = {}
+    for mode in ["drive", "taxi", "public_transport"]:
+        aggregate_scores[mode] = round(
+            sum(leg["scores"][mode] for leg in leg_recommendations) / len(leg_recommendations),
+            2,
+        )
+
+    recommended_mode = max(aggregate_scores, key=aggregate_scores.get)
+    providers = {leg["provider_mode"] for leg in leg_recommendations}
+    provider_mode = providers.pop() if len(providers) == 1 else "mixed"
+    all_pt_available = all(leg["public_transport_available"] for leg in leg_recommendations)
+    segment_routes = []
+    for index, leg in enumerate(leg_recommendations):
+        segment_routes.append(
+            {
+                "index": index + 1,
+                "mode": leg["recommended_mode"],
+                "route_type": (leg["route_preview"] or {}).get("route_type"),
+                "coords": (leg["route_preview"] or {}).get("coords") or [],
+                "origin": leg["origin"]["label"],
+                "destination": leg["destination"]["label"],
+            }
+        )
+        best_carpark_route = leg.get("best_carpark_route") or {}
+        best_carpark = leg.get("best_carpark") or {}
+        best_carpark_coords = best_carpark_route.get("coords") or []
+        if best_carpark_coords:
+            segment_routes.append(
+                {
+                    "index": index + 1,
+                    "mode": "drive",
+                    "route_type": best_carpark_route.get("route_type"),
+                    "coords": best_carpark_coords,
+                    "origin": leg["destination"]["label"],
+                    "destination": best_carpark.get("name") or "Best carpark",
+                    "variant": "best_carpark",
+                    "color": "#dc2626",
+                }
+            )
+
+    return {
+        "provider_mode": provider_mode,
+        "recommended_mode": recommended_mode,
+        "scores": aggregate_scores,
+        "raw_scores": final_leg["raw_scores"],
+        "justifications": final_leg["justifications"],
+        "traffic": final_leg["traffic"],
+        "weather": final_leg["weather"],
+        "carparks": final_leg["carparks"],
+        "map_markers": build_map_markers(
+            origin,
+            destinations,
+            {
+                "carparks": final_leg["carparks"],
+                "traffic": final_leg["traffic"],
+                "weather": final_leg["weather"],
+                "taxis_available": 0,
+            },
+            final_leg["best_carpark"],
+        )
+        if len(destinations) == 1
+        else [{"type": "origin", "label": origin["label"], "latitude": origin["latitude"], "longitude": origin["longitude"]}]
+        + [
+            {
+                "type": "destination",
+                "label": destination["label"],
+                "latitude": destination["latitude"],
+                "longitude": destination["longitude"],
+                "sequence": index + 1,
+            }
+            for index, destination in enumerate(destinations)
+        ]
+        + [
+            {
+                "type": "carpark",
+                "label": carpark["name"],
+                "latitude": carpark["latitude"],
+                "longitude": carpark["longitude"],
+                "distance_m": carpark["distance_m"],
+                "available_lots": carpark["available_lots"],
+                "sequence": index + 1,
+                "destination_label": leg["destination"]["label"],
+            }
+            for index, leg in enumerate(leg_recommendations)
+            for carpark in leg.get("carparks", [])[:8]
+        ]
+        + [
+            {
+                "type": "best_carpark",
+                "label": leg["best_carpark"]["name"],
+                "latitude": leg["best_carpark"]["latitude"],
+                "longitude": leg["best_carpark"]["longitude"],
+                "sequence": index + 1,
+                "destination_label": leg["destination"]["label"],
+            }
+            for index, leg in enumerate(leg_recommendations)
+            if leg.get("best_carpark")
+        ],
+        "best_carpark": final_leg["best_carpark"],
+        "public_transport_available": all_pt_available,
+        "public_transport_route": final_leg["public_transport_route"],
+        "public_transport_fallback_reason": final_leg["public_transport_fallback_reason"],
         "origin": origin,
         "destinations": destinations,
+        "leg_recommendations": [
+            {
+                **leg,
+                "segment_index": index + 1,
+            }
+            for index, leg in enumerate(leg_recommendations)
+        ],
+        "segment_routes": segment_routes,
         "guest_restrictions": ["save favourite location", "past session history"],
     }
