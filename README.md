@@ -47,6 +47,7 @@ python manage.py runserver
 
 ```powershell
 cd frontend && npm install
+npm install lucide-react @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
 ```
 
 2. Copy `.env.example` to `.env`.
