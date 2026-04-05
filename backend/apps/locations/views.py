@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.middleware import RouteRateThrottle, SearchRateThrottle
 from .models import FavouriteLocation
 from .serializers import FavouriteLocationSerializer, GeocodeRequestSerializer, ReverseGeocodeRequestSerializer, RouteRequestSerializer, ValidateLocationSerializer
 from .services import build_multi_stop_route, geocode_address, is_in_singapore, reverse_geocode
@@ -31,6 +32,7 @@ class FavouriteLocationViewSet(viewsets.ModelViewSet):
 
 class AutocompleteView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [SearchRateThrottle]
 
     def get(self, request):
         serializer = GeocodeRequestSerializer(data=request.query_params)
@@ -40,6 +42,7 @@ class AutocompleteView(APIView):
 
 class ValidateLocationView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [SearchRateThrottle]
 
     def post(self, request):
         serializer = ValidateLocationSerializer(data=request.data)
@@ -65,6 +68,7 @@ class ValidateLocationView(APIView):
 
 class ReverseGeocodeView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [SearchRateThrottle]
 
     def get(self, request):
         serializer = ReverseGeocodeRequestSerializer(data=request.query_params)
@@ -74,6 +78,7 @@ class ReverseGeocodeView(APIView):
 
 class RoutePreviewView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [RouteRateThrottle]
 
     def post(self, request):
         data = request.data.copy()

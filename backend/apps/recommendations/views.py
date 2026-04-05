@@ -6,6 +6,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.middleware import RouteRateThrottle
+
 from .models import RecommendationHistory
 from .serializers import RecommendationHistorySerializer, RecommendationSerializer
 from .services import generate_recommendation
@@ -42,6 +44,7 @@ class RecommendationHistoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 class RecommendationView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [RouteRateThrottle]
 
     def post(self, request):
         serializer = RecommendationSerializer(data=request.data)

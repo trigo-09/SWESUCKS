@@ -1,5 +1,17 @@
 import uuid
 
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+
+
+class SearchRateThrottle(AnonRateThrottle):
+    """Throttle for location search/autocomplete endpoints — higher limit to support keystroke-level queries."""
+    scope = "search"
+
+
+class RouteRateThrottle(UserRateThrottle):
+    """Throttle for route preview and recommendation endpoints — moderate limit per authenticated user."""
+    scope = "route"
+
 
 class RequestIdMiddleware:
     """
