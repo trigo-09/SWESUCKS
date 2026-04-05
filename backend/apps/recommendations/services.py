@@ -429,14 +429,24 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
         origin.get("label"), len(destinations), preference_mode, max_walking_distance,
     )
 
-    leg_recommendations = []
-    previous_point = origin
+    # Build all (origin, destination) pairs upfront — order matters for display
+    waypoints = [origin] + list(destinations)
+    legs = [(waypoints[i], waypoints[i + 1]) for i in range(len(waypoints) - 1)]
 
-    for destination in destinations:
-        leg_recommendations.append(
-            generate_leg_recommendation(previous_point, destination, preference_mode, max_walking_distance)
-        )
-        previous_point = destination
+    # Run all legs in parallel — each leg's API calls are independent
+    with ThreadPoolExecutor(max_workers=len(legs)) as executor:
+        future_to_index = {
+            executor.submit(
+                generate_leg_recommendation, leg_origin, leg_dest, preference_mode, max_walking_distance
+            ): idx
+            for idx, (leg_origin, leg_dest) in enumerate(legs)
+        }
+        leg_results = {}
+        for future in as_completed(future_to_index):
+            idx = future_to_index[future]
+            leg_results[idx] = future.result()
+
+    leg_recommendations = [leg_results[i] for i in range(len(legs))]
 
     final_leg = leg_recommendations[-1]
 
