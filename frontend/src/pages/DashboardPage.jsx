@@ -43,18 +43,40 @@ import {
   Plus,
 } from "lucide-react";
 
+const DASHBOARD_STORAGE_KEY = "dashboard-state";
+
+function readDashboardSession() {
+  try {
+    const raw = sessionStorage.getItem(DASHBOARD_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [origin, setOrigin] = useState(null);
-  const [originDraft, setOriginDraft] = useState("");
-  const [destinations, setDestinations] = useState([createEmptyDestination()]);
-  const [destinationDrafts, setDestinationDrafts] = useState([""]);
-  const [recommendation, setRecommendation] = useState(null);
-  const [routePreviewData, setRoutePreviewData] = useState(null);
-  const [status, setStatus] = useState("");
+  const [origin, setOrigin] = useState(() => readDashboardSession()?.origin || null);
+  const [originDraft, setOriginDraft] = useState(
+    () => readDashboardSession()?.origin?.label || "",
+  );
+  const [destinations, setDestinations] = useState(
+    () => readDashboardSession()?.destinations || [createEmptyDestination()],
+  );
+  const [destinationDrafts, setDestinationDrafts] = useState(
+    () => readDashboardSession()?.destinations?.map((item) => item.label || "") || [""],
+  );
+  const [recommendation, setRecommendation] = useState(
+    () => readDashboardSession()?.recommendation || null,
+  );
+  const [routePreviewData, setRoutePreviewData] = useState(
+    () => readDashboardSession()?.routePreviewData || null,
+  );
+  const [status, setStatus] = useState(() => readDashboardSession()?.status || "");
+
   const [fieldErrors, setFieldErrors] = useState({ origin: "", destinations: {} });
   const [locatingOrigin, setLocatingOrigin] = useState(false);
 
@@ -76,6 +98,30 @@ export default function DashboardPage() {
   const previousDesktopWideRef = useRef(null);
   const processedRerunKeyRef = useRef("");
   const recommendationSectionRef = useRef(null);
+  
+  const hasAutoRequestedLocationRef = useRef(
+    Boolean(readDashboardSession()?.origin || readDashboardSession()?.recommendation),
+  );
+
+
+  useEffect(() => {
+    try {
+      const snapshot = {
+        origin,
+        destinations,
+        recommendation,
+        routePreviewData,
+        status,
+      };
+
+      sessionStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // ignore storage failures
+    }
+  }, [origin, destinations, recommendation, routePreviewData, status]);
+
+
+
 
   const sensors = useSensors(
     useSensor(MouseSensor),
@@ -112,7 +158,7 @@ export default function DashboardPage() {
     setFieldErrors((current) => applyDuplicateErrors(origin, destinations, current));
   }, [destinations, origin]);
 
-  const detectCurrentLocation = (applyToOrigin = false) => {
+  const detectCurrentLocation = useCallback((applyToOrigin = false) => {
     if (!navigator.geolocation) {
       setStatus(
         "Geolocation is not available in this browser. Please enter your origin manually.",
@@ -183,7 +229,20 @@ export default function DashboardPage() {
         setStatus("Location permission denied. Please enter your origin manually.");
       },
     );
-  };
+  }, []);
+
+  const handleMapReady = useCallback(() => {
+    if (hasAutoRequestedLocationRef.current || origin?.label || locatingOrigin) {
+      return;
+    }
+
+    hasAutoRequestedLocationRef.current = true;
+    detectCurrentLocation(true);
+  }, [detectCurrentLocation, locatingOrigin, origin?.label]);
+
+
+
+
 
   useEffect(() => {
     setDashboardPreferenceMode(user?.profile?.preference_mode || "cost");
@@ -676,9 +735,11 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
+
     if (!recommendation) {
       return;
     }
+
 
     const currentOriginKey = buildLocationKey(origin);
     const recommendationOriginKey = buildLocationKey(recommendation.origin);
@@ -703,6 +764,13 @@ export default function DashboardPage() {
     [activeDragId, destinations],
   );
 
+  const mapViewVersion = useMemo(() => {
+    return `${recommendation ? "has-reco" : "no-reco"}::${routePreviewData ? "has-route" : "no-route"}::${buildLocationKey(origin)}::${validDestinations
+      .map(buildLocationKey)
+      .join("::")}`;
+  }, [origin, recommendation, routePreviewData, validDestinations]);
+
+
   return (
   <div className="relative h-full w-full overflow-hidden">
       <div className="absolute inset-0 z-0">
@@ -713,8 +781,11 @@ export default function DashboardPage() {
           segmentRoutes={segmentRoutes}
           activeSelectionTarget={activeSelectionTarget}
           onMapSelect={handleMapSelect}
+          onMapReady={handleMapReady}
           isMobile={!isDesktopWide}
+          viewVersion={mapViewVersion}
         />
+
       </div>
 
       <section
@@ -1028,7 +1099,9 @@ export default function DashboardPage() {
                       subtitle="A live summary that stays close to the map"
                       cardRef={recommendationSectionRef}
                     >
-                      <RecommendationPanel recommendation={recommendation} />
+                      {/* <RecommendationPanel recommendation={recommendation} /> */}
+
+
                       {/* {!recommendation ? (
                         <div className="rounded-[1.6rem] bg-slate-50 p-4">
                           <h2 className="text-xl font-semibold text-slate-900">
