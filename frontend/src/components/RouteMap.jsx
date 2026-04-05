@@ -100,7 +100,7 @@ function getMarkerIcon(markerType) {
   return undefined;
 }
 
-function FitBounds({ markers, routeLine, isMobile }) {
+function FitBounds({ markers, routeLine, isMobile, viewVersion }) {
   const map = useMap();
   const lastBoundsKeyRef = useRef("");
   const mobileFitView = useMemo(
@@ -132,7 +132,10 @@ function FitBounds({ markers, routeLine, isMobile }) {
           )
           .map((item) => [item.latitude, item.longitude]),
       ];
-      const routeKey = routeBoundsPoints.map((point) => point.join(",")).join("|");
+      const routeKey = `${viewVersion}::${isMobile ? "mobile" : "desktop"}::${routeBoundsPoints
+        .map((point) => point.join(","))
+        .join("|")}`;
+
       if (lastBoundsKeyRef.current === routeKey) {
         return;
       }
@@ -158,7 +161,10 @@ function FitBounds({ markers, routeLine, isMobile }) {
     }
     if (markers.length > 0) {
       const markerPoints = markers.map((item) => [item.latitude, item.longitude]);
-      const markerKey = markerPoints.map((point) => point.join(",")).join("|");
+      const markerKey = `${viewVersion}::${isMobile ? "mobile" : "desktop"}::${markerPoints
+        .map((point) => point.join(","))
+        .join("|")}`;
+
       if (lastBoundsKeyRef.current === markerKey) {
         return;
       }
@@ -172,7 +178,7 @@ function FitBounds({ markers, routeLine, isMobile }) {
         map.fitBounds(SINGAPORE_BOUNDS, desktopSingaporeView);
       }
     }
-  }, [desktopSingaporeView, isMobile, map, markers, mobileFitView, routeLine]);
+  }, [desktopSingaporeView, isMobile, map, markers, mobileFitView, routeLine, viewVersion]);
 
   return null;
 }
@@ -222,6 +228,23 @@ function DefaultCenterView({ center, zoom, hasActiveView }) {
   return null;
 }
 
+function MapReadyNotifier({ onMapReady }) {
+  const map = useMap();
+  const hasNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    if (hasNotifiedRef.current || !onMapReady) {
+      return;
+    }
+
+    hasNotifiedRef.current = true;
+    onMapReady(map);
+  }, [map, onMapReady]);
+
+  return null;
+}
+
+
 export default function RouteMap({
   origin,
   destinations,
@@ -229,7 +252,9 @@ export default function RouteMap({
   segmentRoutes = [],
   activeSelectionTarget = "",
   onMapSelect = null,
+  onMapReady = null,
   isMobile = false,
+  viewVersion = "default"
 }) {
   const defaultZoom = isMobile ? 10.4 : 10.5;
   const defaultCenter = useMemo(
@@ -296,6 +321,7 @@ export default function RouteMap({
 
         <ZoomControl position="topright" />
         <MapResizeFix />
+        <MapReadyNotifier onMapReady={onMapReady} />
         <DefaultCenterView
           center={defaultCenter}
           zoom={defaultZoom}
@@ -309,6 +335,7 @@ export default function RouteMap({
           markers={mapMarkers}
           routeLine={displayRouteLine}
           isMobile={isMobile}
+          viewVersion={viewVersion}
         />
 
         {mapMarkers.map((marker, index) => (

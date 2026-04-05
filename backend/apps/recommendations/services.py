@@ -247,7 +247,7 @@ def build_justifications(mode, context):
         best = context["best_carpark"]
         return [
             f"Best car park: {best['name']}.",
-            f"{best['available_lots']}/{best['total_lots']} lots free, {best['distance_m']}m away.",
+            f"{best['available_lots']}/{best['total_lots']} lots free, {int(best['distance_m'])}m away.",
             f"Traffic near {context['destination']['label']} is {context['snapshot']['traffic']['status']}.",
         ][:3]
     if mode == "taxi":
@@ -259,7 +259,6 @@ def build_justifications(mode, context):
     return [
         "Public transport remains the most balanced option.",
         f"Weather is {context['snapshot']['weather']['label'].lower()}.",
-        "No parking search is required for this route.",
     ][:3]
 
 
