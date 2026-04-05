@@ -5,7 +5,7 @@ from django.conf import settings
 from django.core.cache import caches
 
 from apps.common.utils import fetch_json, haversine_meters
-from apps.locations.services import build_route
+from apps.locations.services import build_multi_stop_route
 from .constants import (
     DISTANCE_BUCKET_METERS,
     DISTANCE_DECAY_FACTOR,
@@ -263,13 +263,15 @@ def build_justifications(mode, context):
     ][:3]
 
 
-def is_public_transport_available(origin, destination):
-    route = build_route(origin, destination, "pt")
-    summary = route.get("summary") or {}
+def is_public_transport_available(origin, destinations):
+    route = build_multi_stop_route(origin, destinations, route_type="pt")
+    segments = route.get("segments") or []
+    all_live = segments and all(s.get("provider_mode") == "live" for s in segments)
+    fallback_reasons = [s.get("fallback_reason") for s in segments if s.get("provider_mode") != "live"]
     return {
-        "available": summary.get("provider_mode") == "live",
+        "available": all_live,
         "route": route,
-        "fallback_reason": summary.get("fallback_reason"),
+        "fallback_reason": fallback_reasons[0] if fallback_reasons else None,
     }
 
 
@@ -330,7 +332,7 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
         logger.warning("No carpark data available for %s", final_destination.get("label"))
         raise RuntimeError("No car parks available near this destination.")
 
-    pt_availability = is_public_transport_available(origin, final_destination)
+    pt_availability = is_public_transport_available(origin, destinations)
     walking_limit = int(max_walking_distance)
     filtered = [cp for cp in snapshot["carparks"] if cp["distance_m"] <= walking_limit]
     best_carpark = filtered[0] if filtered else min(snapshot["carparks"], key=lambda cp: cp["distance_m"])
