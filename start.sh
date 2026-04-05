@@ -76,22 +76,23 @@ cleanup() {
 trap cleanup INT TERM
 
 # ── Start backend ────────────────────────────
-info "Starting Django backend on http://127.0.0.1:8000 ..."
 "$PYTHON" "$BACKEND/manage.py" runserver &
 BACKEND_PID=$!
 
 # ── Start frontend ───────────────────────────
-info "Starting Vite frontend on http://localhost:5173 ..."
 npm --prefix "$FRONTEND" run dev &
 FRONTEND_PID=$!
 
+# Wait for startup noise to settle, then print summary at the bottom
+sleep 3
 echo ""
-info "Both servers are running."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 info "  Backend:  http://127.0.0.1:8000"
 info "  Frontend: http://localhost:5173"
 info "  API Docs: http://127.0.0.1:8000/api/docs/"
-echo ""
-warn "Press Ctrl+C to stop both."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+warn "  Press Ctrl+C to stop both servers."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 wait
