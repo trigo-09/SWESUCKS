@@ -24,11 +24,12 @@ async function request(path, options = {}) {
     );
 
     throw new Error(
-      data.detail ||
-        (Array.isArray(firstFieldError) ? firstFieldError[0] : firstFieldError) ||
+      (Array.isArray(firstFieldError) ? firstFieldError[0] : firstFieldError) ||
+        data.detail ||
         data.non_field_errors?.[0] ||
         "Request failed",
     );
+
   }
   return data;
 }
