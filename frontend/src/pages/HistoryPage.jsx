@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Clock3, MapPinned, Route, RotateCcw } from "lucide-react";
 import { api } from "../api/client";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 function normalizeListResponse(data) {
   if (Array.isArray(data)) {
