@@ -27,8 +27,8 @@ Full-stack commuter recommendation app built with Django for the backend and Rea
 python -m pip install -r requirements.txt
 ```
 
-4. Copy `.env.example` to `.env` and fill in optional keys later if needed.
-5. Create the database tables:
+
+4. Create the database tables:
 
 ```powershell
 python manage.py makemigrations accounts
@@ -49,8 +49,7 @@ python manage.py runserver
 cd frontend && npm install && npm install lucide-react @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
 ```
 
-2. Copy `.env.example` to `.env`.
-3. Start the frontend:
+2. Start the frontend:
 
 ```powershell
 npm run dev
