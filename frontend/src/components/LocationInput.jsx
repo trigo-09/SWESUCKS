@@ -146,6 +146,12 @@ export default function LocationInput({
       return;
     }
 
+    if (query.trim().length < 2) {
+      setSuggestions(buildFavouriteSuggestions(query));
+      setHighlightedIndex(0);
+      return;
+    }
+
     const timeout = setTimeout(async () => {
       const requestId = requestIdRef.current + 1;
       requestIdRef.current = requestId;

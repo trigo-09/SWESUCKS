@@ -157,7 +157,12 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
-    "DEFAULT_THROTTLE_RATES": {"anon": "10/hour", "user": "20/hour"},
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/hour",        # auth endpoints (register, login, forgot-password)
+        "user": "200/hour",       # general authenticated endpoints
+        "search": "300/hour",     # location autocomplete / validate / reverse-geocode
+        "route": "100/hour",      # route preview + recommendation generate
+    },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
