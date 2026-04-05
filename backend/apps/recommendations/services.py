@@ -1,5 +1,5 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.conf import settings
 from django.core.cache import caches
@@ -352,12 +352,17 @@ def normalize_leg_route_preview(route_preview):
     }
 
 def generate_leg_recommendation(origin, destination, preference_mode, max_walking_distance):
-    snapshot = get_transport_snapshot(destination)
+    # Phase 1: fetch snapshot and PT availability in parallel — they're independent
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        snapshot_future = executor.submit(get_transport_snapshot, destination)
+        pt_future = executor.submit(is_public_transport_available, origin, [destination])
+        snapshot = snapshot_future.result()
+        pt_availability = pt_future.result()
+
     if not snapshot or not snapshot.get("carparks"):
         logger.warning("No carpark data available for %s", destination.get("label"))
         raise RuntimeError("No car parks available near this destination.")
 
-    pt_availability = is_public_transport_available(origin, [destination])
     walking_limit = int(max_walking_distance)
     filtered = [cp for cp in snapshot["carparks"] if cp["distance_m"] <= walking_limit]
     best_carpark = filtered[0] if filtered else min(snapshot["carparks"], key=lambda cp: cp["distance_m"])
@@ -378,17 +383,21 @@ def generate_leg_recommendation(origin, destination, preference_mode, max_walkin
     recommended_mode = max(adjusted_scores, key=adjusted_scores.get)
     context = {"best_carpark": best_carpark, "snapshot": snapshot, "destination": destination}
 
-    route_preview = normalize_leg_route_preview(
-        build_route(origin, destination, mode_to_route_type(recommended_mode))
-    )
+    # Phase 2: fetch main route preview and carpark route in parallel — also independent
     best_carpark_location = {
         "label": best_carpark["name"],
         "latitude": best_carpark["latitude"],
         "longitude": best_carpark["longitude"],
     }
-    best_carpark_route = normalize_leg_route_preview(
-        build_route(destination, best_carpark_location, "drive")
-    )
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        route_future = executor.submit(
+            build_route, origin, destination, mode_to_route_type(recommended_mode)
+        )
+        carpark_route_future = executor.submit(
+            build_route, destination, best_carpark_location, "drive"
+        )
+        route_preview = normalize_leg_route_preview(route_future.result())
+        best_carpark_route = normalize_leg_route_preview(carpark_route_future.result())
 
     return {
         "provider_mode": snapshot["provider_mode"],
