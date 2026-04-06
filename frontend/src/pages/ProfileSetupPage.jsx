@@ -34,7 +34,7 @@ export default function ProfileSetupPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 py-10">
+    <div className="flex min-h-screen items-center justify-center px-6 py-10 " style={{background: "radial-gradient(circle at top left, rgba(18, 113, 93, 0.12), transparent 28%), radial-gradient(circle at bottom right, rgba(234, 176, 76, 0.18), transparent 22%), #f7f2e8"}}>
       <div className="w-full max-w-2xl rounded-[2rem] bg-white/90 p-8 shadow-panel">
         <p className="text-sm uppercase tracking-[0.3em] text-brand-500">First-time setup</p>
         <h1 className="mt-4 text-3xl font-semibold text-ink">Tell GO-LAH how you like to travel</h1>
@@ -43,7 +43,7 @@ export default function ProfileSetupPage() {
           <label className="block space-y-2">
             <span className="text-sm font-medium text-ink">Your name</span>
             <input
-              className="w-full rounded-2xl border border-brand-100 px-4 py-3"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
               value={form.name}
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
             />
@@ -51,7 +51,7 @@ export default function ProfileSetupPage() {
           <label className="block space-y-2">
             <span className="text-sm font-medium text-ink">Recommendation priority</span>
             <select
-              className="w-full rounded-2xl border border-brand-100 px-4 py-3"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
               value={form.preference_mode}
               onChange={(event) => setForm((current) => ({ ...current, preference_mode: event.target.value }))}
             >
@@ -62,7 +62,7 @@ export default function ProfileSetupPage() {
           <label className="block space-y-2">
             <span className="text-sm font-medium text-ink">Maximum walking distance</span>
             <select
-              className="w-full rounded-2xl border border-brand-100 px-4 py-3"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
               value={form.max_walking_distance}
               onChange={(event) => setForm((current) => ({ ...current, max_walking_distance: event.target.value }))}
             >
@@ -75,7 +75,7 @@ export default function ProfileSetupPage() {
           <div className="space-y-3">
             <LocationInput label="Favourite location (optional)" value={favourite} onChange={setFavourite} onClear={() => setFavourite(null)} />
             <input
-              className="w-full rounded-2xl border border-brand-100 px-4 py-3"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
               placeholder="Favourite location name"
               value={favouriteName}
               onChange={(event) => setFavouriteName(event.target.value)}

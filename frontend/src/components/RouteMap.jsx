@@ -450,7 +450,7 @@ export default function RouteMap({
       </MapContainer>
 
       {activeSelectionTarget && (
-        <div className="pointer-events-none absolute left-1/2 top-24 z-[500] -translate-x-1/2 px-3">
+        <div className="pointer-events-none absolute left-1/2 top-24 z-[500] -translate-x-1/2">
           <div className="rounded-full border border-blue-200 bg-white/96 px-4 py-2 text-sm font-medium text-blue-700 shadow-lg backdrop-blur">
             Click on the map to select{" "}
             {activeSelectionTarget === "origin"

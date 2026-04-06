@@ -12,7 +12,7 @@ export default function AppShell({ children }) {
   const { user, logout } = useAuth();
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-slate-100">
+    <div className="fixed h-screen w-screen overflow-hidden bg-slate-100">
       <div className="pointer-events-none absolute left-3 right-3 top-1 z-[1200] flex items-center justify-between gap-3 md:left-4 md:right-4 md:top-2">
         <div className="pointer-events-auto flex min-w-0 w-[calc(100%-60px)] items-center justify-between gap-3 rounded-[1.7rem] border border-slate-200/90 bg-white/95 px-4 py-3 shadow-lg backdrop-blur xl:w-[34%]">
           <div className="flex min-w-0 items-center gap-3">
@@ -92,7 +92,7 @@ export default function AppShell({ children }) {
       </aside>
 
       <div className="absolute bottom-20 left-3 right-3 z-[1100] xl:hidden">
-        <div className="mb-4 grid grid-cols-3 gap-2 rounded-[1.7rem] border border-slate-200/90 bg-white/94 p-1 shadow-xl backdrop-blur">
+        <div className="mb-7 grid grid-cols-3 gap-2 rounded-[1.7rem] border border-slate-200/90 bg-white/94 p-1 shadow-xl backdrop-blur">
           {navItems.map((item) => {
             const Icon = item.icon;
 
