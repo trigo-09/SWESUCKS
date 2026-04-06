@@ -184,19 +184,8 @@ function FitBounds({ markers, routeLine, isMobile, viewVersion }) {
       return;
     }
     if (markers.length > 0) {
-      const nonLiveMarkers = markers.filter((item) => item?.type !== "live_location");
-      const liveMarkers = markers.filter((item) => item?.type === "live_location");
+      const markerPoints = markers.map((item) => [item.latitude, item.longitude]);
 
-      const markersForFit =
-        nonLiveMarkers.length >= 2
-          ? [...nonLiveMarkers, ...liveMarkers]
-          : nonLiveMarkers;
-
-      if (markersForFit.length === 0) {
-        return;
-      }
-
-      const markerPoints = markersForFit.map((item) => [item.latitude, item.longitude]);
       const markerKey = `${viewVersion}::${isMobile ? "mobile" : "desktop"}::${markerPoints
         .map((point) => point.join(","))
         .join("|")}`;
@@ -284,19 +273,27 @@ function MapReadyNotifier({ onMapReady }) {
 
 function RecenterOnLiveLocation({ liveLocation, recenterTrigger }) {
   const map = useMap();
+  const latestLocationRef = useRef(liveLocation);
 
   useEffect(() => {
-    if (!liveLocation || !recenterTrigger) {
+    latestLocationRef.current = liveLocation;
+  }, [liveLocation]);
+
+  useEffect(() => {
+    const current = latestLocationRef.current;
+
+    if (!current || !recenterTrigger) {
       return;
     }
 
-    map.setView([liveLocation.latitude, liveLocation.longitude], 17, {
+    map.setView([current.latitude, current.longitude], 17, {
       animate: true,
     });
-  }, [liveLocation, map, recenterTrigger]);
+  }, [map, recenterTrigger]);
 
   return null;
 }
+
 
 
 
@@ -330,47 +327,29 @@ export default function RouteMap({
   );
 
   const mapMarkers = useMemo(() => {
-    const baseMarkers =
-      markers.length > 0
-        ? markers
-        : [
-            ...(origin
-              ? [
-                  {
-                    type: "origin",
-                    label: origin.label,
-                    latitude: origin.latitude,
-                    longitude: origin.longitude,
-                  },
-                ]
-              : []),
-            ...(destinations || []).map((item, index) => ({
-              type: "destination",
-              label: item.label,
-              latitude: item.latitude,
-              longitude: item.longitude,
-              sequence: index + 1,
-            })),
-          ];
+    return markers.length > 0
+      ? markers
+      : [
+          ...(origin
+            ? [
+                {
+                  type: "origin",
+                  label: origin.label,
+                  latitude: origin.latitude,
+                  longitude: origin.longitude,
+                },
+              ]
+            : []),
+          ...(destinations || []).map((item, index) => ({
+            type: "destination",
+            label: item.label,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            sequence: index + 1,
+          })),
+        ];
+  }, [markers, origin, destinations]);
 
-    if (
-      liveLocation &&
-      Number.isFinite(liveLocation.latitude) &&
-      Number.isFinite(liveLocation.longitude)
-    ) {
-      return [
-        ...baseMarkers,
-        {
-          type: "live_location",
-          label: liveLocation.label || "My live location",
-          latitude: liveLocation.latitude,
-          longitude: liveLocation.longitude,
-        },
-      ];
-    }
-
-    return baseMarkers;
-  }, [markers, origin, destinations, liveLocation]);
 
 
   const hasActiveView = displayRouteLine.length >= 2 || mapMarkers.length > 0;
@@ -418,6 +397,21 @@ export default function RouteMap({
           isMobile={isMobile}
           viewVersion={viewVersion}
         />
+
+        {liveLocation && Number.isFinite(liveLocation.latitude) && Number.isFinite(liveLocation.longitude) && (
+          <Marker
+            position={[liveLocation.latitude, liveLocation.longitude]}
+            icon={LIVE_LOCATION_ICON}
+          >
+            <Popup>
+              <div className="text-sm">
+                <div className="font-semibold">{liveLocation.label || "My live location"}</div>
+                <div className="text-slate-500">Live location</div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
 
         {mapMarkers.map((marker, index) => (
           <Marker
