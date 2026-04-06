@@ -388,7 +388,7 @@ export default function AuthPage() {
           </button>
           <div className="flex min-h-11 items-center justify-center">
             {GOOGLE_CLIENT_ID ? (
-              <div ref={googleButtonRef} className="flex w-full justify-center overflow-hidden rounded-2xl" />
+              <div ref={googleButtonRef} className="flex w-full justify-center overflow-hidden rounded-2xl text-center" />
             ) : (
               <button type="button" disabled className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-400">
                 Continue with Google
