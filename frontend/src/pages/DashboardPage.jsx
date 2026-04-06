@@ -41,6 +41,7 @@ import {
   MapPin,
   LocateFixed,
   Plus,
+  Navigation
 } from "lucide-react";
 
 const DASHBOARD_STORAGE_KEY = "dashboard-state";
@@ -77,6 +78,10 @@ export default function DashboardPage() {
   );
   const [status, setStatus] = useState(() => readDashboardSession()?.status || "");
 
+  const locationWatchIdRef = useRef(null);
+  const [liveLocation, setLiveLocation] = useState(null);
+  const [recenterTrigger, setRecenterTrigger] = useState(0);
+
   const [fieldErrors, setFieldErrors] = useState({ origin: "", destinations: {} });
   const [locatingOrigin, setLocatingOrigin] = useState(false);
 
@@ -98,10 +103,63 @@ export default function DashboardPage() {
   const previousDesktopWideRef = useRef(null);
   const processedRerunKeyRef = useRef("");
   const recommendationSectionRef = useRef(null);
-  
+
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const isGeolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
+  const isLocationUsable = isGeolocationAvailable && !locationPermissionDenied;
+
   const hasAutoRequestedLocationRef = useRef(
     Boolean(readDashboardSession()?.origin || readDashboardSession()?.recommendation),
   );
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    if (locationWatchIdRef.current !== null) {
+      return;
+    }
+
+    locationWatchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        setLocationPermissionDenied(false);
+
+        setLiveLocation({
+          label: "My live location",
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          source: "live_location",
+        });
+      },
+      () => {
+        setLocationPermissionDenied(true);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 10000,
+      },
+    );
+
+    return () => {
+      if (locationWatchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
+    };
+  }, []);
+
+    const recenterOnLiveLocation = useCallback(() => {
+      if (!liveLocation) {
+        setStatus("Live location is not available yet.");
+        return;
+      }
+
+      setRecenterTrigger((value) => value + 1);
+    }, [liveLocation]);
+
+
 
 
   useEffect(() => {
@@ -158,7 +216,71 @@ export default function DashboardPage() {
     setFieldErrors((current) => applyDuplicateErrors(origin, destinations, current));
   }, [destinations, origin]);
 
+  const applyDetectedLocation = useCallback(async (latitude, longitude, applyToOrigin = false) => {
+    setLocationPermissionDenied(false);
+    
+    const fallbackLocation = {
+      label: `Current location (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`,
+      latitude,
+      longitude,
+      source: "current_location",
+    };
+
+    if (applyToOrigin) {
+      setOrigin(fallbackLocation);
+      setOriginDraft(fallbackLocation.label);
+      setFieldErrors((current) => ({ ...current, origin: "" }));
+      setStatus("Current coordinates detected. Resolving address...");
+    }
+
+    let nextLocation = fallbackLocation;
+
+    try {
+      const result = await api.get(
+        `/locations/reverse-geocode/?latitude=${latitude}&longitude=${longitude}`,
+      );
+
+      nextLocation = {
+        ...fallbackLocation,
+        ...result,
+        source: "current_location",
+      };
+    } finally {
+      setLocatingOrigin(false);
+    }
+
+    if (applyToOrigin) {
+      try {
+        const data = await api.post("/locations/validate/", {
+          latitude: nextLocation.latitude,
+          longitude: nextLocation.longitude,
+          label: nextLocation.label,
+        });
+
+        setOrigin(data.location);
+        setOriginDraft(data.location.label);
+        setFieldErrors((current) => ({ ...current, origin: "" }));
+        setStatus("Current location applied to origin.");
+      } catch {
+        setOrigin(nextLocation);
+        setOriginDraft(nextLocation.label);
+        setFieldErrors((current) => ({ ...current, origin: "" }));
+        setStatus("Current coordinates applied. Address validation is unavailable right now.");
+      }
+    } else {
+      setStatus("Current location detected. You can use the button again to set it as your origin.");
+    }
+  }, []);
+
+
   const detectCurrentLocation = useCallback((applyToOrigin = false) => {
+    if (liveLocation?.latitude && liveLocation?.longitude) {
+      setLocationPermissionDenied(false);
+      setLocatingOrigin(true);
+      applyDetectedLocation(liveLocation.latitude, liveLocation.longitude, applyToOrigin);
+      return;
+    }
+
     if (!navigator.geolocation) {
       setStatus(
         "Geolocation is not available in this browser. Please enter your origin manually.",
@@ -169,76 +291,29 @@ export default function DashboardPage() {
     setLocatingOrigin(true);
 
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const fallbackLocation = {
-          label: `Current location (${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)})`,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          source: "current_location",
-        };
-
-        if (applyToOrigin) {
-          setOrigin(fallbackLocation);
-          setOriginDraft(fallbackLocation.label);
-          setFieldErrors((current) => ({ ...current, origin: "" }));
-          setStatus("Current coordinates detected. Resolving address...");
-        }
-
-        let nextLocation = fallbackLocation;
-
-        try {
-          const result = await api.get(
-            `/locations/reverse-geocode/?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}`,
-          );
-
-          nextLocation = {
-            ...fallbackLocation,
-            ...result,
-            source: "current_location",
-          };
-        } finally {
-          setLocatingOrigin(false);
-        }
-
-        if (applyToOrigin) {
-          try {
-            const data = await api.post("/locations/validate/", {
-              latitude: nextLocation.latitude,
-              longitude: nextLocation.longitude,
-              label: nextLocation.label,
-            });
-
-            setOrigin(data.location);
-            setOriginDraft(data.location.label);
-            setFieldErrors((current) => ({ ...current, origin: "" }));
-            setStatus("Current location applied to origin.");
-          } catch {
-            setOrigin(nextLocation);
-            setOriginDraft(nextLocation.label);
-            setFieldErrors((current) => ({ ...current, origin: "" }));
-            setStatus("Current coordinates applied. Address validation is unavailable right now.");
-          }
-        } else {
-          setStatus(
-            "Current location detected. You can use the button again to set it as your origin.",
-          );
-        }
+      (position) => {
+        applyDetectedLocation(
+          position.coords.latitude,
+          position.coords.longitude,
+          applyToOrigin,
+        );
       },
       () => {
         setLocatingOrigin(false);
+        setLocationPermissionDenied(true);
         setStatus("Location permission denied. Please enter your origin manually.");
       },
     );
-  }, []);
+  }, [applyDetectedLocation, liveLocation]);
 
-  const handleMapReady = useCallback(() => {
-    if (hasAutoRequestedLocationRef.current || origin?.label || locatingOrigin) {
-      return;
-    }
+    const handleMapReady = useCallback(() => {
+      if (hasAutoRequestedLocationRef.current || origin?.label || locatingOrigin) {
+        return;
+      }
 
-    hasAutoRequestedLocationRef.current = true;
-    detectCurrentLocation(true);
-  }, [detectCurrentLocation, locatingOrigin, origin?.label]);
+      hasAutoRequestedLocationRef.current = true;
+      detectCurrentLocation(true);
+    }, [detectCurrentLocation, locatingOrigin, origin?.label]);
 
 
 
@@ -784,6 +859,9 @@ export default function DashboardPage() {
           onMapReady={handleMapReady}
           isMobile={!isDesktopWide}
           viewVersion={mapViewVersion}
+          liveLocation={liveLocation}
+          recenterTrigger={recenterTrigger}
+
         />
 
       </div>
@@ -881,15 +959,15 @@ export default function DashboardPage() {
                       title="Origin"
                       subtitle="Pick where your trip starts"
                       trailing={
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          onClick={() => detectCurrentLocation(true)}
-                          disabled={locatingOrigin}
-                        >
-                          <LocateFixed size={14} />
-                          {locatingOrigin ? "Locating..." : "Your location"}
-                        </button>
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => detectCurrentLocation(true)}
+                            disabled={!isLocationUsable || locatingOrigin}
+                          >
+                            <LocateFixed size={14} />
+                            {locatingOrigin ? "Locating..." : "Your location"}
+                          </button>
                       }
                     >
                       <LocationInput
@@ -914,28 +992,39 @@ export default function DashboardPage() {
                         favourites={user?.favourite_locations || []}
                         externalError={fieldErrors.origin}
                       />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className={`mt-3 flex items-center gap-1 rounded-full border px-4 py-2 text-sm transition ${
+                            activeSelectionTarget === "origin"
+                              ? "border-blue-200 bg-blue-50 text-blue-700"
+                              : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                          onClick={() => {
+                            const nextTarget = activeSelectionTarget === "origin" ? "" : "origin";
+                            setActiveSelectionTarget(nextTarget);
 
-                      <button
-                        type="button"
-                        className={`mt-3 flex items-center gap-1 rounded-full border px-4 py-2 text-sm transition ${
-                          activeSelectionTarget === "origin"
-                            ? "border-blue-200 bg-blue-50 text-blue-700"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                        onClick={() => {
-                          const nextTarget = activeSelectionTarget === "origin" ? "" : "origin";
-                          setActiveSelectionTarget(nextTarget);
+                            if (!isDesktopWide && nextTarget) {  //isMobile && nextTarget) {
+                              setIsPanelExpanded(false);
+                            }
+                          }}
+                        >
+                          <MapPin size={14} />
+                          {activeSelectionTarget === "origin"
+                            ? "Cancel map selection"
+                            : "Pick on map"}
+                        </button>
 
-                          if (!isDesktopWide && nextTarget) {  //isMobile && nextTarget) {
-                            setIsPanelExpanded(false);
-                          }
-                        }}
-                      >
-                        <MapPin size={14} />
-                        {activeSelectionTarget === "origin"
-                          ? "Cancel map selection"
-                          : "Pick on map"}
-                      </button>
+                        <button
+                          type="button"
+                          className="mt-3 flex items-center gap-1 rounded-full border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={recenterOnLiveLocation}
+                          disabled={!isLocationUsable || !liveLocation}
+                        >
+                          <Navigation size={16} />
+                          
+                        </button>
+                      </div>
                     </MapSectionCard>
 
                     <MapSectionCard
@@ -1094,15 +1183,15 @@ export default function DashboardPage() {
                       )}
                     </MapSectionCard>
 
-                    {(recommendation && <MapSectionCard
+                    {/* {(recommendation && <MapSectionCard
                       title="Recommendation"
                       subtitle="A live summary that stays close to the map"
                       cardRef={recommendationSectionRef}
                     >
-                      {/* <RecommendationPanel recommendation={recommendation} /> */}
+                      <RecommendationPanel recommendation={recommendation} /> 
 
 
-                      {/* {!recommendation ? (
+                      {!recommendation ? (
                         <div className="rounded-[1.6rem] bg-slate-50 p-4">
                           <h2 className="text-xl font-semibold text-slate-900">
                             {isGeneratingRecommendation ? "Working on it..." : "Ready when you are"}
@@ -1115,8 +1204,8 @@ export default function DashboardPage() {
                         </div>
                       ) : (
                         <RecommendationPanel recommendation={recommendation} />
-                      )} */}
-                    </MapSectionCard>)}
+                      )}
+                    </MapSectionCard>)} */}
 
                     {legRecommendations.length > 0 && (
                       <MapSectionCard
@@ -1189,6 +1278,17 @@ export default function DashboardPage() {
                     {mobileSummary}
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:bg-slate-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={recenterOnLiveLocation}
+                  disabled={!isLocationUsable || !liveLocation}
+                  aria-label="Center on live location"
+                >
+                  <Navigation size={16} />
+                </button>
+
 
                 <button
                   type="button"
