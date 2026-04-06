@@ -14,6 +14,25 @@ L.Icon.Default.mergeOptions({
   shadowUrl: shadow
 });
 
+const LIVE_LOCATION_ICON = L.divIcon({
+  className: "live-location-marker",
+  html: `
+    <div style="
+      position: relative;
+      width: 16px;
+      height: 16px;
+      border-radius: 9999px;
+      background: #3b82f6;
+      border: 3px solid white;
+      box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.22);
+    "></div>
+  `,
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+  popupAnchor: [0, -10],
+});
+
+
 const BEST_CARPARK_ICON = L.divIcon({
   className: "best-carpark-marker",
   html: `
@@ -97,8 +116,13 @@ function getMarkerIcon(markerType) {
     return CARPARK_ICON;
   }
 
+  if (markerType === "live_location") {
+    return LIVE_LOCATION_ICON;
+  }
+
   return undefined;
 }
+
 
 function FitBounds({ markers, routeLine, isMobile, viewVersion }) {
   const map = useMap();
@@ -160,7 +184,19 @@ function FitBounds({ markers, routeLine, isMobile, viewVersion }) {
       return;
     }
     if (markers.length > 0) {
-      const markerPoints = markers.map((item) => [item.latitude, item.longitude]);
+      const nonLiveMarkers = markers.filter((item) => item?.type !== "live_location");
+      const liveMarkers = markers.filter((item) => item?.type === "live_location");
+
+      const markersForFit =
+        nonLiveMarkers.length >= 2
+          ? [...nonLiveMarkers, ...liveMarkers]
+          : nonLiveMarkers;
+
+      if (markersForFit.length === 0) {
+        return;
+      }
+
+      const markerPoints = markersForFit.map((item) => [item.latitude, item.longitude]);
       const markerKey = `${viewVersion}::${isMobile ? "mobile" : "desktop"}::${markerPoints
         .map((point) => point.join(","))
         .join("|")}`;
@@ -168,6 +204,7 @@ function FitBounds({ markers, routeLine, isMobile, viewVersion }) {
       if (lastBoundsKeyRef.current === markerKey) {
         return;
       }
+
       lastBoundsKeyRef.current = markerKey;
 
       if (isMobile) {
@@ -175,9 +212,10 @@ function FitBounds({ markers, routeLine, isMobile, viewVersion }) {
       } else if (markerPoints.length === 1) {
         map.setView(markerPoints[0], 17, { animate: false });
       } else {
-        map.fitBounds(SINGAPORE_BOUNDS, desktopSingaporeView);
+        map.fitBounds(markerPoints, desktopSingaporeView);
       }
     }
+
   }, [desktopSingaporeView, isMobile, map, markers, mobileFitView, routeLine, viewVersion]);
 
   return null;
@@ -244,6 +282,23 @@ function MapReadyNotifier({ onMapReady }) {
   return null;
 }
 
+function RecenterOnLiveLocation({ liveLocation, recenterTrigger }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!liveLocation || !recenterTrigger) {
+      return;
+    }
+
+    map.setView([liveLocation.latitude, liveLocation.longitude], 17, {
+      animate: true,
+    });
+  }, [liveLocation, map, recenterTrigger]);
+
+  return null;
+}
+
+
 
 export default function RouteMap({
   origin,
@@ -254,7 +309,10 @@ export default function RouteMap({
   onMapSelect = null,
   onMapReady = null,
   isMobile = false,
-  viewVersion = "default"
+  viewVersion = "default",
+  liveLocation = null,
+  recenterTrigger = 0,
+
 }) {
   const defaultZoom = isMobile ? 10.4 : 10.5;
   const defaultCenter = useMemo(
@@ -272,30 +330,48 @@ export default function RouteMap({
   );
 
   const mapMarkers = useMemo(() => {
-    if (markers.length > 0) {
-      return markers;
+    const baseMarkers =
+      markers.length > 0
+        ? markers
+        : [
+            ...(origin
+              ? [
+                  {
+                    type: "origin",
+                    label: origin.label,
+                    latitude: origin.latitude,
+                    longitude: origin.longitude,
+                  },
+                ]
+              : []),
+            ...(destinations || []).map((item, index) => ({
+              type: "destination",
+              label: item.label,
+              latitude: item.latitude,
+              longitude: item.longitude,
+              sequence: index + 1,
+            })),
+          ];
+
+    if (
+      liveLocation &&
+      Number.isFinite(liveLocation.latitude) &&
+      Number.isFinite(liveLocation.longitude)
+    ) {
+      return [
+        ...baseMarkers,
+        {
+          type: "live_location",
+          label: liveLocation.label || "My live location",
+          latitude: liveLocation.latitude,
+          longitude: liveLocation.longitude,
+        },
+      ];
     }
 
-    return [
-      ...(origin
-        ? [
-            {
-              type: "origin",
-              label: origin.label,
-              latitude: origin.latitude,
-              longitude: origin.longitude,
-            },
-          ]
-        : []),
-      ...(destinations || []).map((item, index) => ({
-        type: "destination",
-        label: item.label,
-        latitude: item.latitude,
-        longitude: item.longitude,
-        sequence: index + 1,
-      })),
-    ];
-  }, [markers, origin, destinations]);
+    return baseMarkers;
+  }, [markers, origin, destinations, liveLocation]);
+
 
   const hasActiveView = displayRouteLine.length >= 2 || mapMarkers.length > 0;
 
@@ -322,6 +398,11 @@ export default function RouteMap({
         <ZoomControl position="topright" />
         <MapResizeFix />
         <MapReadyNotifier onMapReady={onMapReady} />
+        <RecenterOnLiveLocation
+          liveLocation={liveLocation}
+          recenterTrigger={recenterTrigger}
+        />
+
         <DefaultCenterView
           center={defaultCenter}
           zoom={defaultZoom}

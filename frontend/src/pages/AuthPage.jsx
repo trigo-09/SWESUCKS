@@ -379,9 +379,16 @@ export default function AuthPage() {
         </form>
 
         <div className="mt-6 space-y-3">
+          <button
+            type="button"
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm hover:bg-slate-50"
+            onClick={continueAsGuest}
+          >
+            Continue as guest
+          </button>
           <div className="flex min-h-11 items-center justify-center">
             {GOOGLE_CLIENT_ID ? (
-              <div ref={googleButtonRef} className="w-full overflow-hidden rounded-2xl" />
+              <div ref={googleButtonRef} className="flex w-full justify-center overflow-hidden rounded-2xl" />
             ) : (
               <button type="button" disabled className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-400">
                 Continue with Google
@@ -391,13 +398,7 @@ export default function AuthPage() {
           {GOOGLE_CLIENT_ID && !googleReady && (
             <p className="text-center text-sm text-slate-500">Loading Google sign-in...</p>
           )}
-          <button
-            type="button"
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm hover:bg-slate-50"
-            onClick={continueAsGuest}
-          >
-            Continue as guest
-          </button>
+
         </div>
       </section>
     </div>
