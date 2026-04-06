@@ -4,53 +4,67 @@ Full-stack commuter recommendation app built with Django for the backend and Rea
 
 ## What is included
 
-- Email registration, login, Google login, email verification OTP, forgot password OTP and guest login
+- Email registration, login, Google OAuth, email verification OTP, forgot/reset password and guest login
 - First-login profile setup with name, preference mode, walking distance and optional favourite location
-- Location autocomplete, validation and reverse geocoding using a local Singapore dataset via onemap
-- Recommendation engine that scores Drive, Taxi and Public Transport
+- Location autocomplete, validation, reverse geocoding and route preview via OneMap
+- Recommendation engine that scores Drive, Taxi and Public Transport using live LTA and weather data
+- Multi-stop trip support with per-leg recommendations aggregated into one overall recommendation
 - Recommendation history and favourite locations for authenticated users
 - Settings page for profile edits, favourites and password change
-
+- API documentation at `/api/docs/`
 
 ## Project structure
 
-- `backend/` Django API
-- `frontend/` React app powered by Vite
-
-## Backend setup
-
-1. Install Python 3.11+.
-2. Create and activate a virtual environment inside `backend/`.
-3. Install dependencies:
-
-```powershell
-python -m pip install -r requirements.txt
+```
+CODEE/
+├── backend/      Django REST API
+├── frontend/     React app powered by Vite
+├── requirements.txt
+└── start.sh      Single command to run everything
 ```
 
+## Quick start
 
-4. Create the database tables:
+This is the only command you need:
 
-```powershell
-python manage.py makemigrations accounts
+```bash
+./start.sh
+```
+
+The script will:
+1. Detect your Python installation automatically
+2. Install frontend dependencies if missing
+3. Apply any pending database migrations
+4. Start both servers concurrently
+
+| Service  | URL                            |
+|----------|--------------------------------|
+| Frontend | http://localhost:5173          |
+| Backend  | http://127.0.0.1:8000          |
+| API Docs | http://127.0.0.1:8000/api/docs/ |
+
+Press `Ctrl+C` to stop both servers.
+
+## Prerequisites
+
+- Python 3.11+ with Django installed 
+- Node.js 18+  
+`pip install -r requirements.txt`
+
+
+## Manual setup (if not using start.sh)
+
+**Backend:**
+```bash
+cd backend
+pip install -r ../requirements.txt
 python manage.py migrate
-```
-
-6. Start the backend:
-
-```powershell
 python manage.py runserver
 ```
 
-## Frontend setup
-
-1. Install dependencies:
-
-```powershell
-cd frontend && npm install && npm install lucide-react @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
-```
-
-2. Start the frontend:
-
-```powershell
+**Frontend:**
+```bash
+cd frontend
+npm install
 npm run dev
 ```

@@ -1,3 +1,5 @@
+import os
+
 AUTH_URL = "https://www.onemap.gov.sg/api/auth/post/getToken"
 SEARCH_URL = "https://www.onemap.gov.sg/api/common/elastic/search"
 ROUTE_URL = "https://www.onemap.gov.sg/api/public/routingsvc/route"
@@ -5,7 +7,7 @@ REVERSE_GEOCODE_URLS = [
     "https://www.onemap.gov.sg/api/public/revgeocode",
     "https://www.onemap.gov.sg/api/common/elastic/revgeocode",
 ]
-BOUNDARY_URL = "apps/locations/SLALandSurveyDistrict.geojson"
+BOUNDARY_URL = os.path.join(os.path.dirname(__file__), "SLALandSurveyDistrict.geojson")
 
 
 TOKEN_EXPIRY_BUFFER = 60
