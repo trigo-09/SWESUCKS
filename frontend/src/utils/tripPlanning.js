@@ -1,4 +1,4 @@
-function createDestinationId() {
+export function createDestinationId() {
   return `destination-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 

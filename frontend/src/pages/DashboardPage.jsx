@@ -17,6 +17,7 @@ import {
   applyDuplicateErrors,
   buildLegRecommendations,
   buildLocationKey,
+  createDestinationId,
   createEmptyDestination,
   findDuplicateLocations,
   mapRecommendationModeToRouteType,
@@ -58,6 +59,11 @@ function readDashboardSession() {
 export default function DashboardPage() {
   const { user } = useAuth();
   const location = useLocation();
+  const hasRerunState =
+    Boolean(location.state?.rerunOrigin) &&
+    Array.isArray(location.state?.rerunDestinations) &&
+    location.state.rerunDestinations.length > 0;
+
   const navigate = useNavigate();
 
   const [origin, setOrigin] = useState(() => readDashboardSession()?.origin || null);
@@ -109,8 +115,10 @@ export default function DashboardPage() {
   const isLocationUsable = isGeolocationAvailable && !locationPermissionDenied;
 
   const hasAutoRequestedLocationRef = useRef(
+    hasRerunState ||
     Boolean(readDashboardSession()?.origin || readDashboardSession()?.recommendation),
   );
+
 
   useEffect(() => {
     if (!navigator.geolocation) {
