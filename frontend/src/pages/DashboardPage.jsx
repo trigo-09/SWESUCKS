@@ -877,8 +877,8 @@ export default function DashboardPage() {
       <section
         className={`absolute z-[1000] rounded-[1rem] border border-slate-200/90 bg-white/94 shadow-2xl backdrop-blur transition-all duration-300 ${
           isPanelExpanded
-            ? "bottom-[140px] left-3 right-3 h-[69vh] overflow-visible md:h-[52vh] xl:bottom-4 xl:left-[118px] xl:right-auto xl:top-24 xl:h-auto xl:w-[430px]"
-            : "bottom-[140px] left-3 right-3 h-[78px] overflow-hidden xl:bottom-4 xl:left-[118px] xl:right-auto xl:top-24 xl:h-auto xl:w-[78px]"
+            ? "bottom-[152px] left-3 right-3 h-[65vh] overflow-visible md:h-[52vh] xl:bottom-4 xl:left-[118px] xl:right-auto xl:top-24 xl:h-auto xl:w-[430px]"
+            : "bottom-[152px] left-3 right-3 h-[78px] overflow-hidden xl:bottom-4 xl:left-[118px] xl:right-auto xl:top-24 xl:h-auto xl:w-[78px]"
         }`}
       >
         {isPanelExpanded ? (
@@ -939,7 +939,7 @@ export default function DashboardPage() {
               <div className={`px-4 py-4 sm:px-5 ${expandedLeg ? "h-full" : ""}`}>
                 {expandedLeg ? (
                   <MapSectionCard
-                    title={`Leg ${expandedLeg.segment_index} details`}
+                    title={`Trip ${expandedLeg.segment_index} details`}
                     subtitle="Expanded recommendation view"
                     className="flex h-full min-h-0 flex-col overflow-hidden"
                     trailing={

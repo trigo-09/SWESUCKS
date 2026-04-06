@@ -227,7 +227,7 @@ export default function LocationInput({
         />
 
         <input
-          className="w-full rounded-2xl border border-brand-100 bg-white px-4 py-3 pr-12 pl-7 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-12 pl-7 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
           value={query}
           onChange={(event) => {
             onInteract?.();

@@ -7,10 +7,7 @@ body {
   min-width: 320px;
   min-height: 88vh;
   color: #172026;
-  background:
-    radial-gradient(circle at top left, rgba(18, 113, 93, 0.12), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(234, 176, 76, 0.18), transparent 22%),
-    #f7f2e8;
+
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

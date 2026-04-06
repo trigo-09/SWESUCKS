@@ -207,7 +207,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen px-4 py-4 sm:px-6 lg:px-10 flex items-center justify-center gap-5">
+    <div className="min-h-screen px-4 py-4 sm:px-6 lg:px-10 flex items-center justify-center gap-5" style={{background: "radial-gradient(circle at top left, rgba(18, 113, 93, 0.12), transparent 28%), radial-gradient(circle at bottom right, rgba(234, 176, 76, 0.18), transparent 22%), #f7f2e8"}}>
       <img src="/app-icon.png" alt="GO-LAH logo" className="h-[600px] w-[600px] hidden lg:block h-[420px] w-[420px] object-contain" />
       <section className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" >
         <div className="mb-5">
