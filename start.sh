@@ -84,7 +84,7 @@ npm --prefix "$FRONTEND" run dev &
 FRONTEND_PID=$!
 
 # Wait for startup noise to settle, then print summary at the bottom
-sleep 3
+sleep 2
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 info "  Backend:  http://127.0.0.1:8000"
