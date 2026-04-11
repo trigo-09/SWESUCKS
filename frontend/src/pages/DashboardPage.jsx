@@ -104,6 +104,9 @@ export default function DashboardPage() {
   const [dashboardMaxWalkingDistance, setDashboardMaxWalkingDistance] = useState(
     user?.profile?.max_walking_distance || "500",
   );
+  const [dashboardCanDrive, setDashboardCanDrive] = useState(
+    user?.profile?.can_drive ?? true,
+  );
   const [activeDragId, setActiveDragId] = useState(null);
 
   const previousDesktopWideRef = useRef(null);
@@ -119,6 +122,16 @@ export default function DashboardPage() {
     Boolean(readDashboardSession()?.origin || readDashboardSession()?.recommendation),
   );
 
+
+  useEffect(() => {
+    setDashboardPreferenceMode(user?.profile?.preference_mode || "cost");
+    setDashboardMaxWalkingDistance(user?.profile?.max_walking_distance || "500");
+    setDashboardCanDrive(user?.profile?.can_drive ?? true);
+  }, [
+    user?.profile?.can_drive,
+    user?.profile?.max_walking_distance,
+    user?.profile?.preference_mode,
+  ]);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -582,6 +595,7 @@ export default function DashboardPage() {
           destinations: requestDestinations,
           preference_mode: dashboardPreferenceMode,
           max_walking_distance: dashboardMaxWalkingDistance,
+          can_drive: dashboardCanDrive,
         });
 
         const routeType = mapRecommendationModeToRouteType(data.recommended_mode);
@@ -612,6 +626,7 @@ export default function DashboardPage() {
       }
     },
     [
+      dashboardCanDrive,
       dashboardMaxWalkingDistance,
       dashboardPreferenceMode,
       destinationDrafts,
@@ -883,8 +898,8 @@ export default function DashboardPage() {
       >
         {isPanelExpanded ? (
           <div className="relative flex h-full flex-col">
-            <div className="flex items-center justify-between gap-2 px-4 pb-1 pt-3">
-              <div className="flex gap-1">
+            <div className="flex items-center justify-between gap-[1px] px-1 pb-1 pt-3">
+              <div className="flex gap-[1px]">
                 <button
                   type="button"
                   onClick={() => {
@@ -892,13 +907,13 @@ export default function DashboardPage() {
                     setRoutePreviewData(null);
                     setStatus("Recommendation cleared.");
                   }}
-                  className="rounded-full border border-slate-200 bg-white p-1 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  className="rounded-full border border-slate-200 bg-white p-1 text-[10.5px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
                 >
                   Clear
                 </button>
 
                 <select
-                  className="rounded-full border border-slate-200 bg-white p-1 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  className="rounded-full border border-slate-200 bg-white p-1 text-[10.5px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                   value={dashboardPreferenceMode}
                   onChange={(event) => setDashboardPreferenceMode(event.target.value)}
                 >
@@ -907,7 +922,7 @@ export default function DashboardPage() {
                 </select>
 
                 <select
-                  className="rounded-full border border-slate-200 bg-white p-1 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  className="rounded-full border border-slate-200 bg-white p-1 text-[10.5px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
                   value={dashboardMaxWalkingDistance}
                   onChange={(event) => setDashboardMaxWalkingDistance(event.target.value)}
                 >
@@ -915,6 +930,15 @@ export default function DashboardPage() {
                   <option value="500">Less than 500m</option>
                   <option value="1000">Less than 1km</option>
                   <option value="2000">Less than 2km</option>
+                </select>
+
+                <select
+                  className="rounded-full border border-slate-200 bg-white p-1 text-[10.5px] font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                  value={dashboardCanDrive ? "yes" : "no"}
+                  onChange={(event) => setDashboardCanDrive(event.target.value === "yes")}
+                >
+                  <option value="yes">Can drive</option>
+                  <option value="no">Cannot drive</option>
                 </select>
               </div>
 
@@ -929,7 +953,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => setIsPanelExpanded(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:bg-slate-100 active:scale-95 xl:hidden"
+                className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-md transition hover:bg-slate-100 active:scale-95 xl:hidden"
               >
                 ↓
               </button>

@@ -247,7 +247,7 @@ def build_justifications(mode, context):
         best = context["best_carpark"]
         return [
             f"Best car park: {best['name']}.",
-            f"{best['available_lots']}/{best['total_lots']} lots free, {int(best['distance_m'])}m away.",
+            f"{best['available_lots']} lots free, {int(best['distance_m'])}m away.",
             f"Traffic near {context['destination']['label']} is {context['snapshot']['traffic']['status']}.",
         ][:3]
     if mode == "taxi":
@@ -350,7 +350,7 @@ def normalize_leg_route_preview(route_preview):
         "details": flattened_details,
     }
 
-def generate_leg_recommendation(origin, destination, preference_mode, max_walking_distance):
+def generate_leg_recommendation(origin, destination, preference_mode, max_walking_distance, can_drive=True):
     # Phase 1: fetch snapshot and PT availability in parallel — they're independent
     with ThreadPoolExecutor(max_workers=2) as executor:
         snapshot_future = executor.submit(get_transport_snapshot, destination)
@@ -378,6 +378,9 @@ def generate_leg_recommendation(origin, destination, preference_mode, max_walkin
         {"drive": drive_score, "taxi": taxi_score, "public_transport": public_transport_score},
         preference_mode,
     )
+    if not can_drive:
+        drive_score = 0
+        adjusted_scores["drive"] = 0
 
     recommended_mode = max(adjusted_scores, key=adjusted_scores.get)
     context = {"best_carpark": best_carpark, "snapshot": snapshot, "destination": destination}
@@ -419,10 +422,11 @@ def generate_leg_recommendation(origin, destination, preference_mode, max_walkin
         "public_transport_fallback_reason": pt_availability["fallback_reason"],
         "route_preview": route_preview,
         "best_carpark_route": best_carpark_route,
+        "can_drive": can_drive,
     }
 
 
-def generate_recommendation(origin, destinations, preference_mode, max_walking_distance):
+def generate_recommendation(origin, destinations, preference_mode, max_walking_distance, can_drive=True):
     logger.info(
         "Generating recommendation: origin=%s destinations=%d preference=%s walking_limit=%s",
         origin.get("label"), len(destinations), preference_mode, max_walking_distance,
@@ -436,7 +440,12 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
     with ThreadPoolExecutor(max_workers=len(legs)) as executor:
         future_to_index = {
             executor.submit(
-                generate_leg_recommendation, leg_origin, leg_dest, preference_mode, max_walking_distance
+                generate_leg_recommendation,
+                leg_origin,
+                leg_dest,
+                preference_mode,
+                max_walking_distance,
+                can_drive,
             ): idx
             for idx, (leg_origin, leg_dest) in enumerate(legs)
         }
@@ -455,6 +464,8 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
             sum(leg["scores"][mode] for leg in leg_recommendations) / len(leg_recommendations),
             2,
         )
+    if not can_drive:
+        aggregate_scores["drive"] = 0
 
     recommended_mode = max(aggregate_scores, key=aggregate_scores.get)
     providers = {leg["provider_mode"] for leg in leg_recommendations}
@@ -553,6 +564,7 @@ def generate_recommendation(origin, destinations, preference_mode, max_walking_d
         "public_transport_fallback_reason": final_leg["public_transport_fallback_reason"],
         "origin": origin,
         "destinations": destinations,
+        "can_drive": can_drive,
         "leg_recommendations": [
             {
                 **leg,

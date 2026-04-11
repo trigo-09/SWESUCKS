@@ -38,6 +38,7 @@ class RecommendationHistoryViewSet(viewsets.ReadOnlyModelViewSet):
             history.destinations,
             getattr(profile, "preference_mode", "cost"),
             getattr(profile, "max_walking_distance", "500"),
+            getattr(profile, "can_drive", True),
         )
         return Response(payload)
 
@@ -54,8 +55,17 @@ class RecommendationView(APIView):
         destinations = serializer.validated_data["destinations"]
         preference_mode = serializer.validated_data.get("preference_mode") or getattr(profile, "preference_mode", "cost")
         max_walking_distance = serializer.validated_data.get("max_walking_distance") or getattr(profile, "max_walking_distance", "500")
+        can_drive = serializer.validated_data.get("can_drive")
+        if can_drive is None:
+            can_drive = getattr(profile, "can_drive", True)
         try:
-            payload = generate_recommendation(origin, destinations, preference_mode, max_walking_distance)
+            payload = generate_recommendation(
+                origin,
+                destinations,
+                preference_mode,
+                max_walking_distance,
+                can_drive,
+            )
         except Exception as error:
             logger.exception("generate_recommendation failed for user=%s", getattr(request.user, "email", "anon"))
             return Response({"detail": str(error)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

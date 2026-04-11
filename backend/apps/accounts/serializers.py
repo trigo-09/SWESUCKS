@@ -9,7 +9,7 @@ from .services import verify_google_credential
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ["name", "preference_mode", "max_walking_distance", "notifications_enabled"]
+        fields = ["name", "preference_mode", "max_walking_distance", "can_drive", "notifications_enabled"]
 
 
 class UserSerializer(serializers.ModelSerializer):

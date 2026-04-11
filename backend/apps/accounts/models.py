@@ -38,6 +38,7 @@ class Profile(models.Model):
     name = models.CharField(max_length=120, blank=True)
     preference_mode = models.CharField(max_length=10, choices=PREFERENCE_CHOICES, default="cost")
     max_walking_distance = models.CharField(max_length=10, choices=WALKING_DISTANCE_CHOICES, default="500")
+    can_drive = models.BooleanField(default=True)
     notifications_enabled = models.BooleanField(default=True)
 
 
