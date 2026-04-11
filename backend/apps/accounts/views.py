@@ -154,6 +154,12 @@ class ForgotPasswordView(APIView):
 
         if not user:
             return Response({"detail": "If an account exists with this email, an OTP has been sent."}, status=200) #preventing revealing email existence
+        
+        if user.auth_provider != "email":
+            return Response(
+                {"detail": "Password reset is only available for email-password accounts. Please use Google sign-in."},
+                status=400,
+            )
 
         try:
             issue_otp(user, "reset")
@@ -176,6 +182,12 @@ class ResetPasswordView(APIView):
 
         if not user:
             return Response({"detail": "If valid, your password has been reset."}, status=200)#preventing revealing email existence
+        
+        if user.auth_provider != "email":
+            return Response(
+                {"detail": "Password reset is only available for email-password accounts. Please use Google sign-in."},
+                status=400,
+            )
 
         otp = OTPToken.objects.filter(user=user, purpose="reset").order_by("-created_at").first()
         if not otp or otp.code != serializer.validated_data["otp"] or not otp.is_valid:
