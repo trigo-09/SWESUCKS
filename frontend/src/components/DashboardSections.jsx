@@ -225,8 +225,7 @@ export function RecommendationPanel({ recommendation }) {
                   >
                     <p className="text-sm font-medium text-slate-900">{carpark.name}</p>
                     <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                      Lots Available: {carpark.available_lots}/{carpark.total_lots} (
-                      {Math.round(carpark.occupancy_rate * 100)}%) · {carpark.distance_m}m away
+                      {carpark.available_lots} lots free, {Math.round(carpark.distance_m)}m away
                     </p>
                   </div>
                 ))}
@@ -467,8 +466,7 @@ export function JourneyLegCard({
                     >
                       <p className="text-sm font-medium text-slate-900">{carpark.name}</p>
                       <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                        Lots Available: {carpark.available_lots}/{carpark.total_lots} (
-                        {Math.round(carpark.occupancy_rate * 100)}%) · {carpark.distance_m}m away
+                        {carpark.available_lots} lots free, {Math.round(carpark.distance_m)}m away
                       </p>
                     </div>
                   ))}
