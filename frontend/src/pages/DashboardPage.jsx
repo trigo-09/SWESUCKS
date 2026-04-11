@@ -699,7 +699,11 @@ export default function DashboardPage() {
       return liveFormMarkers;
     }
 
-    const isDrive = recommendation.recommended_mode === "drive";
+    const driveLegKeys = new Set(
+      (recommendation.leg_recommendations || [])
+        .filter((leg) => leg.recommended_mode === "drive")
+        .map((leg) => `${leg.segment_index}:${leg.destination?.label || ""}`)
+    );
 
     const decorationMarkers = recommendation.map_markers.filter((marker) => {
       if (["origin", "destination"].includes(marker.type)) {
@@ -707,7 +711,8 @@ export default function DashboardPage() {
       }
 
       if (["carpark", "best_carpark"].includes(marker.type)) {
-        return isDrive;
+        const markerKey = `${marker.sequence}:${marker.destination_label || ""}`;
+        return driveLegKeys.has(markerKey);
       }
 
       return true;
@@ -723,12 +728,21 @@ export default function DashboardPage() {
         ? recommendation.segment_routes
         : routePreviewData?.segments || [];
 
-    if (recommendation?.recommended_mode !== "drive") {
-      return routes.filter((segment) => segment?.variant !== "best_carpark");
-    }
+    const driveLegIndexes = new Set(
+      (recommendation?.leg_recommendations || [])
+        .filter((leg) => leg.recommended_mode === "drive")
+        .map((leg) => leg.segment_index)
+    );
 
-    return routes;
+    return routes.filter((segment) => {
+      if (segment?.variant !== "best_carpark") {
+        return true;
+      }
+
+      return driveLegIndexes.has(segment.index);
+    });
   }, [recommendation, routePreviewData]);
+
 
 
   const legRecommendations = useMemo(() => {
