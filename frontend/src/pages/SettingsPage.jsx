@@ -363,7 +363,7 @@ export default function SettingsPage() {
         </div>
       </section>
       {user?.auth_provider !== "google" && (
-        <section className="rounded-[2rem] bg-white/90 p-6 shadow-panel">
+        <section className="rounded-[2rem] bg-white/90 p-6 pb-20 xl:pb-6 shadow-panel">
           <h3 className="text-2xl font-semibold text-ink">Change password</h3>
           {/* <p className="mt-2 text-sm text-slate-600">
             Email-password users can change their password here. Google sign-ins should keep using Google authentication.

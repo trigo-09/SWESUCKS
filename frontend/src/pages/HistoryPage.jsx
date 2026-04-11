@@ -52,7 +52,7 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6 px-3 pb-24 pt-24 xl:pl-[126px] xl:pr-5">
-      <section className="rounded-[2rem] border border-slate-200 bg-white/90 p-6 shadow-panel">
+      <section className="rounded-[2rem] border border-slate-200 bg-white/90 p-6 pb-20 xl:pb-6 shadow-panel">
         <p className="text-sm uppercase tracking-[0.3em] text-brand-500">History</p>
         <h2 className="mt-2 text-3xl font-semibold text-ink">Past recommendations</h2>
         {/*<p className="mt-2 text-sm text-slate-500">
