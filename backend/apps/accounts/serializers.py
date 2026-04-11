@@ -50,7 +50,15 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        user = authenticate(username=attrs["email"].lower(), password=attrs["password"])
+        email = attrs["email"].lower()
+        existing_user = User.objects.filter(email__iexact=email).first()
+
+        if existing_user and existing_user.auth_provider != "email":
+            raise serializers.ValidationError(
+                "This account uses Google sign-in. Please continue with Google."
+            )
+
+        user = authenticate(username=email, password=attrs["password"])
         if not user:
             raise serializers.ValidationError("Invalid email or password.")
         if user.auth_provider == "email" and not user.is_verified:
