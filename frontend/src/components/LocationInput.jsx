@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import {Search} from "lucide-react";
 import { api } from "../api/client";
 
+const EMPTY_FAVOURITES = [];
+
 export default function LocationInput({
   label,
   value,
   onChange,
   onClear,
-  favourites = [],
+  favourites = EMPTY_FAVOURITES,
   externalError = "",
   onQueryChange = null,
   onInteract = null, 
 }) {
+  
   const [query, setQuery] = useState(value?.label || "");
   const [suggestions, setSuggestions] = useState([]);
   const [error, setError] = useState("");

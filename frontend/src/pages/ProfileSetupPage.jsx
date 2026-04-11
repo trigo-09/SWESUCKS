@@ -17,7 +17,7 @@ export default function ProfileSetupPage() {
   const submit = async (skip = false) => {
     const data = await api.patch("/auth/profile/", skip ? { ...form, name: "" } : form);
     if (!skip && favourite?.label && favouriteName) {
-      const favouriteLocation = await api.post("/auth/favourites/", {
+      const favouriteLocation = await api.post("/locations/favourites/", {
         name: favouriteName,
         address: favourite.label,
         latitude: favourite.latitude,
