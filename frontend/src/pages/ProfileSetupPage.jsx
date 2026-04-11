@@ -8,7 +8,8 @@ export default function ProfileSetupPage() {
   const [form, setForm] = useState({
     name: user?.profile?.name || "",
     preference_mode: user?.profile?.preference_mode || "cost",
-    max_walking_distance: user?.profile?.max_walking_distance || "500"
+    max_walking_distance: user?.profile?.max_walking_distance || "500",
+    can_drive: user?.profile?.can_drive ?? true,
   });
   const [favourite, setFavourite] = useState(null);
   const [favouriteName, setFavouriteName] = useState("");
@@ -70,6 +71,22 @@ export default function ProfileSetupPage() {
               <option value="500">Less than 500m</option>
               <option value="1000">Less than 1km</option>
               <option value="2000">Less than 2km</option>
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-ink">Can drive?</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+              value={form.can_drive ? "yes" : "no"}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  can_drive: event.target.value === "yes",
+                }))
+              }
+            >
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
             </select>
           </label>
           <div className="space-y-3">

@@ -495,7 +495,7 @@ export function JourneyLegCard({
                 />
               ) : (
                 <p className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
-                  Traffic image is currently unavailable for this leg.
+                  Traffic image is currently unavailable for this trip.
                 </p>
               )}
             </div>

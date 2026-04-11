@@ -20,6 +20,7 @@ class RecommendationSerializer(serializers.Serializer):
     destinations = LocationSerializer(many=True)
     preference_mode = serializers.CharField(required=False)
     max_walking_distance = serializers.CharField(required=False)
+    can_drive = serializers.BooleanField(required=False)
 
     def validate_destinations(self, value):
         if not value:
