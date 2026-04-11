@@ -2,6 +2,10 @@
 
 Full-stack commuter recommendation app built with Django for the backend and React + Tailwind CSS for the frontend.
 
+## Demo Video
+
+Watch our product demo: [GO-LAH Demo Video](https://youtu.be/ruSrKxUmfvY)
+
 ## What is included
 
 - Email registration, login, Google OAuth, email verification OTP, forgot/reset password and guest login
