@@ -711,6 +711,10 @@ export default function DashboardPage() {
       }
 
       if (["carpark", "best_carpark"].includes(marker.type)) {
+        if (!marker.sequence && !marker.destination_label) {
+          return driveLegKeys.size === 1;
+        }
+
         const markerKey = `${marker.sequence}:${marker.destination_label || ""}`;
         return driveLegKeys.has(markerKey);
       }
